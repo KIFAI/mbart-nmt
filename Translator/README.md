@@ -1,4 +1,4 @@
-<h1 align="center"><b>Part #1. LC(Letter of Credit) Mbart NMT Engine</b></h1>
+<h1 align="center"><b>Part #1. Mbart NMT Engine for LC(Letter of Credit) </b></h1>
 This project is about building a NMT ENGINE using MBARTCC25 PLM for LC type's documentation(EN > KO).
 
 ## 🚀 Features
