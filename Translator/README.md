@@ -1,4 +1,51 @@
-<h1 align="center"><b>LC(Letter of Credit) Translator App</b></h1>
+<h1 align="center"><b>Part #1. LC(Letter of Credit) Mbart NMT Engine</b></h1>
+This project is about building a NMT ENGINE using MBARTCC25 PLM for LC type's documentation(EN > KO).
+
+## 🚀 Features
+- Possible to use custom sentencepiece model & vocab
+- Reduce token embedding matched custom spc vocab and convert fairseq type's model to huggingface type
+- Good working on small domain data(<1M) and different language family
+- Futher performance benifit using back stranslation augmentation
+- Transformer architecture(bidirectional encoder and autoregressive decoder)
+
+### 1. Dependency
+```
+$ python3 -m venv mbart_env
+$ . mbart_env/bin/activate
+(mbart_env)$ pip install -r requirements.txt
+```
+
+### 2. Monolingual Corpus
+```
+(mbart_env)$ cd src/raw_data
+(mbart_env)$ cat corpus_sample.train.* > ../sentencepiece/monolingual_corpus.txt
+```
+
+### 3. Sentencepiece Model & Vocab
+```
+(mbart_env)$ python prepare_sentencepiece
+```
+
+### 4. Reduce fairseq's mbartcc25 plm and convert to huggingface format
+```
+(mbart_env)$ python reduce_fairseq_plm.py
+```
+
+### 5. Finetune
+```
+(mbart_env)$ cd scripts
+(mbart_env)$ ./finetune.sh
+#need to edit finetunining info
+```
+
+### 6. evaluate
+```
+(mbart_env)$ cd scripts
+(mbart_env)$ ./evaluate.sh
+#need to edit evaluation info
+```
+
+<h1 align="center"><b>Part #2. Translator App</b></h1>
 
 <h2 align="center">A web application to translate multiple languages</h2>    
 
