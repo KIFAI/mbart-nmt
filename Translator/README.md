@@ -12,27 +12,14 @@
     <img src="https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white" alt="css3"/>     
 </p>
     
-  <h3 align="center"><a href="https://mohit-translation-app.vercel.app/"><strong>Want to see live preview »</strong></a></h3>
-   
-    
-  <p align="center"> 
-    <br />&#10023;
-    <a href="#Demo">View Demo</a>   &#10023;  
-    <a href="https://github.com/m-sehrawat/Translation-App/issues">Report Bug</a>    &#10023;
-    <a href="#Getting-Started">Getting Started</a> &#10023; <a href="#Install">Installing</a> &#10023;    
-  </p>
-
 <br/>
 
-This project is about building a web application to translate languages using language translator API from external services like [Libre Translate](https://libretranslate.de/). Here you will be able to translate between multiple languages and whenever you type something it will be automatically translated in the side panel. To use the app, choose the source language and target language from select options and then type anything in the text area and it will automatically translate it to the targeted language. 
+This project is about building a web application to translate LC type's documentation(EN > KO) using Mbart translator API. Here you will be able to translate between EN > KO languages. Whenever you type something, it will be automatically translated in the side panel. 
 
 
 <br/>
 
-![Language Translator App](https://user-images.githubusercontent.com/91532881/167111293-6b2214bb-2311-4bdf-82a5-aa684226f698.png)
-
-![translator](https://user-images.githubusercontent.com/91532881/167111408-284281e9-ea23-4652-bb03-a47d69c752d9.png)
-
+![Language Translator App](https://user-images.githubusercontent.com/60684500/177440422-1c50494c-b261-4735-98f7-08a1f728daaf.png)
 <br/>
 
 
@@ -43,22 +30,7 @@ This project is about building a web application to translate languages using la
 - Word count feature available 
 - Clear all text at one click feature available 
 - Bubble animations
-- Cool and funky UI/UX design
 - Responsive for all screen sizes
-
-
-
-## Demo
-
-https://user-images.githubusercontent.com/91532881/167123447-6377c777-9d46-43c7-af0a-3dd97c362caf.mp4
-
-
-<br/>
-
-
-## Getting Started
-
-This project was built using React, Rest API, JavaScript and CSS. It is a web application and for running on your local environment you should follow these guidelines.
 
 
 ### Prerequisites
@@ -68,79 +40,65 @@ This project was built using React, Rest API, JavaScript and CSS. It is a web ap
 ### Setup
 
 
-The project repository can be found in [GitHub link](https://github.com/m-sehrawat/Translation-App) or just clone the project using this command. 
+The project repository can be found in https://github.com/jyoyogo/mbart-nmt.git or just clone the project using this command. 
 
 
 ```
 Using HTTPS
 
-# git clone  https://github.com/m-sehrawat/Translation-App.git
+# git clone  https://github.com/jyoyogo/mbart-nmt.git
 ```
 
 + Open terminal on your workspace with
 
 ```
-cd /home/workspace/Translation-App
-
+cd /home/workspace/mbart-nmt/Translator
 ```
 
 
 ## Install
 
 Install NPM
-
-Check that you have node and npm installed
-
 To check if you have Node.js installed, run this command in your terminal:
 
-
 ```
-node -v
+$ curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
+$ sudo apt-get install -y nodejs
+
+
+$ node -v
+v14.19.
+$ npm version
+{
+  'translation-app': '0.0.0',
+  npm: '6.14.16',
+  ares: '1.18.1',
+  brotli: '1.0.9',
+  cldr: '37.0',
+  http_parser: '2.9.4',
+  icu: '67.1',
+  llhttp: '2.1.4',
+  modules: '72',
+  napi: '8',
+  nghttp2: '1.41.0',
+  node: '12.22.12',
+  openssl: '1.1.1n',
+  tz: '2021a4',
+  unicode: '13.0',
+  uv: '1.40.0',
+  v8: '7.8.279.23-node.57',
+  zlib: '1.2.11'
+}
 ```
-
-To confirm that you have npm installed you can run this command in your terminal:
-
-
-```
-npm -v
-```
-
 
 To install all the dependences of the project, run the following command:
-
 
 ```
 npm install
 ```
 
-
 To run the application, run the following command:
 
 ```
-npm run dev
+npm run dev -- --port ${PORT_NUM} --host=${HOST}
 ```
-
-
-### Tools used on this project
-
-- Visual Studio Code
-- Vite Js React Template
-
-<br/>
-
-
-
-<h2>📬 Contact</h2>
-
-If you want to contact me, you can reach me through below handles.
-
-[![linkedin](https://img.shields.io/badge/Mohit_Sehrawat-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/m-sehrawat/)
-[![Twitter](https://img.shields.io/badge/Mohit_Sehrawat-20232A?style=for-the-badge&logo=Github&logoColor=white)](https://github.com/m-sehrawat/)
-
-© 2022 Mohit Sehrawat
-
-
-
-## Show your support
-
-Give a ⭐️ if you like this project!
