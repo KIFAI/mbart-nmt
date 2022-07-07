@@ -56,6 +56,10 @@ def prepare_fairseq_plm(args):
         pass
     else:
         print(f"Download mbart.cc25 PLM")
+        try:
+            os.mkdir(f'{args.fairseq_plm_path}')
+        except Exception as ex:
+            print(ex)
         url = "https://dl.fbaipublicfiles.com/fairseq/models/mbart/mbart.cc25.v2.tar.gz"
         wget.download(url, out=args.fairseq_plm_path)
 

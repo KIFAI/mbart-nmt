@@ -19,6 +19,11 @@ set_seed(0)
 def define_argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--base_path",
+        default="/opt/project/translation/repo/mbart-nmt",
+        type=str,
+    )
+    parser.add_argument(
         "--corpus_path",
         default="./src/raw_corpus/data_with_upper_lc",
         type=str,
@@ -27,6 +32,10 @@ def define_argparser():
         "--plm",
         default="./src/plm/reduced_mbart.cc25",
         type=str,
+    )
+    parser.add_argument(
+        "--additional_special_tokens",
+        default=None
     )
     parser.add_argument(
         "--src_lang",
@@ -64,28 +73,25 @@ def define_argparser():
     return args
 
 
-def get_parallel_dataset(base_path, src_lang='en_XX', tgt_lang='ko_KR', init_id=0, sample_n=10000, category='train'):
+def get_parallel_dataset(base_path, src_lang='en_XX', tgt_lang='ko_KR', category='train'):
     '''
     Load splited src&tgt lang's corpus into huggingface dataset format
     '''
-    init_idx = init_id
     category_data = []
     src_path = os.path.join(base_path, category)
     tgt_path = os.path.join(base_path, category)
     with open(f"{src_path}.{src_lang}", "r") as src, open(f"{tgt_path}.{tgt_lang}", "r") as tgt:
-        src_data = src.readlines()[:sample_n]
-        tgt_data = tgt.readlines()[:sample_n]
+        src_data = src.readlines()
+        tgt_data = tgt.readlines()
     for i, lines in enumerate(tqdm(zip(src_data, tgt_data), total=len(src_data))):
         category_data.append(
             {
-                "id": init_idx,
                 "translation": {
                     f"{src_lang}": lines[0].rstrip('\n'),
                     f"{tgt_lang}": lines[1].rstrip('\n'),
                 }
             }
         )
-        init_idx += 1
     return Dataset.from_pandas(pd.DataFrame(category_data))
 
 
@@ -149,34 +155,42 @@ class Processor:
 if __name__ == '__main__':
     args = define_argparser()
     print(args)
-    train_dataset = get_parallel_dataset(args.corpus_path, args.src_lang, args.tgt_lang,
-                                         init_id=0, sample_n=1100000, category='train')
-    eval_dataset = get_parallel_dataset(args.corpus_path, args.src_lang, args.tgt_lang,
-                                        init_id=1100000, sample_n=282138, category='valid')
+    train_dataset = get_parallel_dataset(args.corpus_path, args.src_lang, args.tgt_lang, category='train')
+    eval_dataset = get_parallel_dataset(args.corpus_path, args.src_lang, args.tgt_lang, category='valid')
     raw_datasets = datasets.DatasetDict(
         {"train": train_dataset, "validation": eval_dataset})
+    
+    mbart_plm = MBartForConditionalGeneration.from_pretrained(args.plm)
 
     if args.plm == 'facebook/mbart-large-50-one-to-many-mmt':
         mbart_tokenizer = MBart50TokenizerFast.from_pretrained(
             args.plm, src_lang=args.src_lang, tgt_lang=args.tgt_lang)
     else:
-        mbart_tokenizer = MBartTokenizer.from_pretrained(
-            args.plm, src_lang=args.src_lang, tgt_lang=args.tgt_lang)
+        if args.additional_special_tokens is not None:
+            if not isinstance(args.additional_special_tokens.split(','), list):
+                raise TypeError('Check additional tokens arg format, "special token1, special_token2,..."')
+            special_tokens=[f"<{st}>" for st in args.additional_special_tokens.split(',')]
+            print(special_tokens)
+
+            mbart_tokenizer = MBartTokenizer.from_pretrained(args.plm, src_lang=args.src_lang, tgt_lang=args.tgt_lang
+                    , additional_special_tokens=special_tokens)
+            mbart_plm.resize_token_embeddings(len(mbart_tokenizer))
+            print(f"After vocab size : {mbart_plm.vocab_size}")
+        else:
+            mbart_tokenizer = MBartTokenizer.from_pretrained(args.plm, src_lang=args.src_lang, tgt_lang=args.tgt_lang)
 
     preprocessor = Processor(
         mbart_tokenizer, src_lang=args.src_lang, tgt_lang=args.tgt_lang)
     tokenized_datasets = raw_datasets.map(
         preprocessor.preprocess, batched=True, remove_columns=raw_datasets["train"].column_names,
         fn_kwargs=preprocessor.properties)
-
-    mbart_plm = MBartForConditionalGeneration.from_pretrained(args.plm)
-
+    
     data_collator = DataCollatorForSeq2Seq(mbart_tokenizer, model=mbart_plm)
     batch = data_collator([tokenized_datasets["validation"][i]
                           for i in range(1, 3)])
 
     train_args = Seq2SeqTrainingArguments(
-        f"./src/ftm/{args.exp_name}-finetuned-{args.src_lang}-to-{args.tgt_lang}",
+        f"{args.base_path}/src/ftm/{args.exp_name}-finetuned-{args.src_lang}-to-{args.tgt_lang}",
         evaluation_strategy="epoch",
         learning_rate=5e-5,  # default 5e-5 > 3e-5
         adam_beta1=0.9,
@@ -184,7 +198,7 @@ if __name__ == '__main__':
         adam_epsilon=1e-08,  # default 1e-8 > 1e-06
         lr_scheduler_type='linear',  # default 'linear' > 'polynomial'
         per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
+        per_device_eval_batch_size=args.batch_size/2,
         weight_decay=0.0,  # default 0.0
         label_smoothing_factor=0.0,  # default 0.0
         save_total_limit=1,
@@ -206,4 +220,4 @@ if __name__ == '__main__':
     trainer.train()
 
     trainer.save_model(
-        f'./src/ftm/{args.exp_name}-finetuned-{args.src_lang}-to-{args.tgt_lang}/final_checkpoint')
+        f'{args.base_path}/src/ftm/{args.exp_name}-finetuned-{args.src_lang}-to-{args.tgt_lang}/final_checkpoint')

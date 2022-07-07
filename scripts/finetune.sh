@@ -1,6 +1,8 @@
-BASE_PATH=/opt/project/translation/mbart-nmt
+BASE_PATH=/opt/project/translation/repo/mbart-nmt
+CORPUS_PATH=src/domain_corpus
 GPU_ID=2
-SRC=ko_KR
-TGT=en_XX
+SRC=en_XX
+TGT=ko_KR
+EXP_NAME=domain_mbart
 
-CUDA_VISIBLE_DEVICES=${GPU_ID} python ${BASE_PATH}/finetune.py --corpus_path ${BASE_PATH}/src/raw_corpus/data_with_upper_lc --plm ${BASE_PATH}/src/plm/reduced_mbart.cc25_v2 --src_lang ${SRC} --tgt_lang ${TGT} --exp_name "reversed-mbart" --max_token_lengh 150 --batch_size 24 --fp16
+CUDA_VISIBLE_DEVICES=${GPU_ID} python ${BASE_PATH}/finetune.py --base_path ${BASE_PATH} --corpus_path ${BASE_PATH}/${CORPUS_PATH} --plm ${BASE_PATH}/src/plm/reduced_mbart.cc25 --src_lang ${SRC} --tgt_lang ${TGT} --exp_name ${EXP_NAME} --max_token_lengh 100 --batch_size 32  --fp16 --additional_special_tokens '법률,경제,교육,문화,예술,관광'
