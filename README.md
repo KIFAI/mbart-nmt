@@ -12,13 +12,14 @@ This project is about building a NMT ENGINE using MBARTCC25 PLM for LC type's do
 ```
 $ python3 -m venv mbart_env
 $ . mbart_env/bin/activate
+(mbart_env)$ pip install --upgrade pip
 (mbart_env)$ pip install -r requirements.txt
 ```
 
 ### 2. Monolingual Corpus
 ```
 (mbart_env)$ cd src/raw_data
-(mbart_env)$ cat corpus_sample.train.* > ../sentencepiece/monolingual_corpus.txt
+(mbart_env)$ cat train.* > ../sentencepiece/monolingual_corpus.txt
 ```
 
 ### 3. Sentencepiece Model & Vocab
