@@ -198,7 +198,7 @@ if __name__ == '__main__':
         adam_epsilon=1e-08,  # default 1e-8 > 1e-06
         lr_scheduler_type='linear',  # default 'linear' > 'polynomial'
         per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size/2,
+        per_device_eval_batch_size=args.batch_size,
         weight_decay=0.0,  # default 0.0
         label_smoothing_factor=0.0,  # default 0.0
         save_total_limit=1,
