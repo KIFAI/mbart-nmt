@@ -5,6 +5,7 @@ import tarfile
 import shutil
 import glob
 import torch
+from collections import Counter
 from fairseq.data import Dictionary
 from transformers import (
     MBartForConditionalGeneration, MBartTokenizer, MBartConfig
@@ -95,7 +96,7 @@ def reduce_plm(pre_dict, ft_dict):
     for i in range(len(ft_dict)):
         word = ft_dict[i]
         mapping.append(pre_dict.index(word))
-
+    print(Counter(mapping).most_common()[:5])
     for name in ["model.encoder.embed_tokens.weight", "model.decoder.embed_tokens.weight", "model.shared.weight", "lm_head.weight"]:
         pre_tensor: torch.Tensor = org_sd[name]
         ft_tensor = torch.zeros(
