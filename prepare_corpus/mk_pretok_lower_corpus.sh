@@ -1,7 +1,7 @@
 #!/bin/bash
 RAWDIR=/opt/project/translation/repo/mbart-nmt/src/aihub_corpus
 SAVEDIR=/opt/project/translation/repo/mbart-nmt/src/pretokenized_aihub_corpus
-FN_HEAD=aihub_written
+FN_HEAD=aihub_written_lower
 KO_SPLITDIR=ko_split_corpus
 KO_TOKDIR=pretokenized_ko_split_corpus
 EN_SPLITDIR=en_split_corpus
@@ -20,8 +20,8 @@ split -a 4 -l 5000 -d ${RAWDIR}/${FN_HEAD}.ko ${SAVEDIR}/${KO_SPLITDIR}/${FN_HEA
 
 split -a 4 -l 5000 -d ${RAWDIR}/${FN_HEAD}.en ${SAVEDIR}/${EN_SPLITDIR}/${FN_HEAD}.en_
 
-python3 pretokenize.py --tagger mecab --input_dir ${SAVEDIR}/${KO_SPLITDIR} --output_dir ${SAVEDIR}/${KO_TOKDIR} --num_processes 32
-python3 pretokenize.py --tagger nltk --input_dir ${SAVEDIR}/${EN_SPLITDIR} --output_dir ${SAVEDIR}/${EN_TOKDIR} --num_processes 32
+python3 pretokenize.py --tagger mecab --input_dir ${SAVEDIR}/${KO_SPLITDIR} --output_dir ${SAVEDIR}/${KO_TOKDIR} --num_processes 48
+python3 pretokenize.py --tagger nltk --input_dir ${SAVEDIR}/${EN_SPLITDIR} --output_dir ${SAVEDIR}/${EN_TOKDIR} --num_processes 48
 
 cat ${SAVEDIR}/${KO_TOKDIR}/*.ko_* > ${SAVEDIR}/${FN_HEAD}_pretok.ko
 cat ${SAVEDIR}/${EN_TOKDIR}/*.en_* > ${SAVEDIR}/${FN_HEAD}_pretok.en
