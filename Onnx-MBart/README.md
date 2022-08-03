@@ -11,8 +11,9 @@
 Install using requirements.txt file
 ```shell
 $ python3 -m venv onnx_env
-$ pip install --upgrade pip
-$ pip install -r requirements.txt
+$ . onnx_env/bin/activate
+(onnx_env)$ pip install --upgrade pip
+(onnx_env)$ pip install -r requirements.txt
 
 ---
 ## Usage
