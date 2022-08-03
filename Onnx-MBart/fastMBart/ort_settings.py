@@ -9,8 +9,13 @@ from onnxruntime import (
     InferenceSession,
     SessionOptions,
     ExecutionMode,
+    set_seed,
+    get_available_providers
 )
 
+set_seed(1)
+assert 'CUDAExecutionProvider' in get_available_providers()
+print(f"Possible inference session : {get_available_providers()}")
 
 def get_onnx_runtime_sessions(
     model_paths,
@@ -20,6 +25,7 @@ def get_onnx_runtime_sessions(
     n_threads: int = 0,
     provider=[
         "CPUExecutionProvider",
+        "CUDAExecutionProvider"
     ],
 ) -> InferenceSession:
     """

@@ -36,7 +36,6 @@ class MBartEncoder(torch.nn.Module):
         output_hidden_states=None,
         return_dict=None,
     ):
-
         encoder_hidden_state = torch.from_numpy(
             self.encoder.run(
                 None,
@@ -49,14 +48,12 @@ class MBartEncoder(torch.nn.Module):
 
         return BaseModelOutput(encoder_hidden_state)
 
-
 class MBartDecoderInit(torch.nn.Module):
     def __init__(self, decoder_sess):
         super().__init__()
         self.decoder = decoder_sess
 
     def forward(self, input_ids, encoder_attention_mask, encoder_hidden_states):
-
         decoder_outputs = self.decoder.run(
             None,
             {
@@ -65,6 +62,7 @@ class MBartDecoderInit(torch.nn.Module):
                 "encoder_hidden_states": encoder_hidden_states.cpu().numpy(),
             },
         )
+        
 
         list_pkv = tuple(torch.from_numpy(x) for x in decoder_outputs[1:])
 
@@ -73,8 +71,7 @@ class MBartDecoderInit(torch.nn.Module):
         )
 
         return torch.from_numpy(decoder_outputs[0]), out_past_key_values
-
-
+        
 class MBartDecoder(torch.nn.Module):
     def __init__(self, decoder_sess):
         super().__init__()

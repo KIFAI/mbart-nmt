@@ -55,7 +55,7 @@ def generate_onnx_representation(
     model=None,
     output_path=None,
     input_sequence_length=256,
-    onnx_opset_version=13,  # no other opset versions are tested, change at your own risk
+    onnx_opset_version=12,  # no other opset versions are tested, change at your own risk
 ):
     """Exports a given huggingface pretrained model, or a given model and tokenizer, to onnx
 
@@ -115,10 +115,10 @@ def generate_onnx_representation(
     #     (model_config.num_decoder_layers, 2, batch_size, n_heads, seq_length_b, d_kv), dtype=torch.float32)
 
     sa = torch.ones(
-        (batch_size, n_heads, dec_seq_length, d_kv), dtype=torch.float32
+        (batch_size, n_heads, dec_seq_length, d_kv), dtype=torch.float32,
     )  # 1, 8, 1, 64
     ca = torch.ones(
-        (batch_size, n_heads, enc_seq_length, d_kv), dtype=torch.float32
+        (batch_size, n_heads, enc_seq_length, d_kv), dtype=torch.float32,
     )  # 1, 8, variable, 64
     bart_block = (sa, sa, ca, ca)
     past_key_values = (bart_block,) * model_config.decoder_layers
@@ -128,7 +128,6 @@ def generate_onnx_representation(
     decoder_all_inputs = tuple(
         [input_ids_dec, attention_mask_dec, enc_out] + flat_past_key_values
     )
-
     # for progress bars
     bar = Bar("Exporting to onnx...", max=3)
 
@@ -169,7 +168,6 @@ def generate_onnx_representation(
         }
 
         dyn_axis_params = {**dyn_axis, **dyn_pkv}
-
         # decoder to utilize past key values:
         torch.onnx.export(
             decoder_with_lm_head,
