@@ -1,4 +1,4 @@
-# fast-Bart
+# fast-MBart
 
 ### Reduction of MBART model size, and boost in inference speed up
   MBART implementation of the fastT5 library (https://github.com/Ki6an/fastT5)
@@ -9,11 +9,14 @@
 ## Install
 
 Install using requirements.txt file
+```shell
+$ pip install --upgrade pip
+$ pip install -r requirements.txt
 
 ---
 ## Usage
 
-The `export_and_get_onnx_model()` method exports the given pretrained Bart model to onnx, quantizes it and runs it on the onnxruntime with default settings. The returned model from this method supports the `generate()` method of huggingface.
+The `export_and_get_onnx_model()` method exports the given pretrained MBart model to onnx, quantizes it and runs it on the onnxruntime with default settings. The returned model from this method supports the `generate()` method of huggingface.
 
 > If you don't wish to quantize the model then use `quantized=False` in the method.
 
@@ -24,8 +27,8 @@ from transformers import MBartTokenizer
 model_name = 'facebook/mbart-large-en-ro'
 model = export_and_get_onnx_model(model_name)
 
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-input = "This is a very long sentence and needs to be summarized."
+tokenizer = MBartTokenizer.from_pretrained(model_name)
+input = "This is a english sentence and needs to be translated."
 token = tokenizer(input, return_tensors='pt')
 
 tokens = model.generate(input_ids=token['input_ids'],
@@ -42,7 +45,7 @@ print(output)
 you can customize the whole pipeline as shown in the below code example:
 
 ```python
-from fastBart import (OnnxBart, get_onnx_runtime_sessions,
+from fastMBart import (OnnxMBart, get_onnx_runtime_sessions,
                     generate_onnx_representation, quantize)
 from transformers import MBartTokenizer
 
@@ -80,7 +83,7 @@ model = export_and_get_onnx_model(model_name, custom_output_path)
 ```
 ## Functionalities
 
-- Export any pretrained Bart model to ONNX easily.
+- Export any pretrained MBart model to ONNX easily.
 - The exported model supports beam search and greedy search and more via `generate()` method.
 - Reduce the model size using quantization.
 - Speedup compared to PyTorch execution for greedy search and for beam search.
