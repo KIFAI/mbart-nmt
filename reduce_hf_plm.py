@@ -17,12 +17,17 @@ def define_argparser():
     )
     parser.add_argument(
         "--plm_local_path",
-        default='./src/ftm/tmp_ckpt',
+        default='./src/plm/tmp_ckpt',
         type=str,
     )
     parser.add_argument(
+        "--use_pretrained_spm",
+        action='store_true',
+        help="If you already have pretrained sentenecepiece model, you can use this spm vocab."
+    )
+    parser.add_argument(
         "--reduction_path",
-        default='./src/ftm/reduced_hf_mbart50_m2m',
+        default='./src/plm/reduced_hf_mbart50_m2m_v2',
         type=str,
     )
 
@@ -96,23 +101,33 @@ def validate_reduced_spm(spm_path):
     assert old_result==new_result
 
 def load_dict(pre_tokenizer, new_spm):
-    pre_dict = {w:i for w, i in sorted(pre_tokenizer.vocab.items(), 
+    pre_dict = {w:i for w, i in sorted(pre_tokenizer.vocab.items(),
                                        key = lambda item: item[1], reverse = False)}
+    print(f"Pretrained Tokenizer's vocab size : {len(pre_tokenizer.get_vocab())}")
     new_dict = {}
-    
-    pieces = [p.piece for p in new_spm.pieces]
+
+    reduced_pieces = [p.piece for p in new_spm.pieces]
     langs = ["ar_AR", "cs_CZ", "de_DE", "en_XX", "es_XX", "et_EE", "fi_FI", "fr_XX", "gu_IN", "hi_IN", "it_IT", "ja_XX", "kk_KZ", "ko_KR", "lt_LT", "lv_LV", "my_MM", "ne_NP", "nl_XX", "ro_RO", "ru_RU", "si_LK", "tr_TR", "vi_VN", "zh_CN", "af_ZA", "az_AZ", "bn_IN", "fa_IR", "he_IL", "hr_HR", "id_ID", "ka_GE", "km_KH", "mk_MK", "ml_IN", "mn_MN", "mr_IN", "pl_PL", "ps_AF", "pt_XX", "sv_SE", "sw_KE", "ta_IN", "te_IN", "th_TH", "tl_XX", "uk_UA", "ur_PK", "xh_ZA", "gl_ES", "sl_SI"]
     symbols = ['<mask>', '<pad>']
-    
-    for token in pieces + symbols + langs:
+
+    initialized_vocab_num = 0
+    common_vocab_num = 0
+
+    for token in list(set(reduced_pieces + symbols + langs)):
         try:
             new_dict[token] = pre_dict[token]
+            common_vocab_num += 1
         except Exception as ex:
-            print(f"{token} not in pre_dict, it's id is changed as <unk> id")
+            #if token not in pre_dict, it's id is changed as <unk> id. it will be initialized in embed token, unk
             new_dict[token] = pre_dict['<unk>']
-            
-    new_dict = {w:i for w, i in sorted(new_dict.items(), 
+            initialized_vocab_num += 1
+
+    print(f"Common word's len between reduced dict and pre dict : {common_vocab_num}")
+    new_dict = {w:i for w, i in sorted(new_dict.items(),
                                        key = lambda item: item[1], reverse = False)}
+    if initialized_vocab_num > 0 :
+        print(f"Newly added word's number in vocab : {initialized_vocab_num}")
+
     return pre_dict, new_dict
 
 def reduce_plm(pre_config, pre_model, pre_dict, new_dict, 
@@ -136,7 +151,7 @@ def reduce_plm(pre_config, pre_model, pre_dict, new_dict,
 
     print("****** Check pre mbart vocab size ******\n")
     print(pre_config)
-    
+
     pre_config.vocab_size = len(new_dict)
     new_model = MBartForConditionalGeneration.from_pretrained(None, config=pre_config, state_dict=resized_sd)
 
@@ -151,13 +166,19 @@ def reduce_plm(pre_config, pre_model, pre_dict, new_dict,
     print(new_config)
 
 
-    shutil.copy(f'./{plm_local_path}/sentencepiece.bpe.model.new', 
+    shutil.copy(f'./{plm_local_path}/sentencepiece.bpe.model.new',
                 f'{plm_local_path}/sentencepiece.bpe.model')
     os.remove(f'{plm_local_path}/tokenizer.json')
 
     new_tokenizer = MBart50TokenizerFast.from_pretrained(plm_local_path)
     new_tokenizer.save_pretrained(reduced_model_path)
     print(f"New tokenizer's vocab size : {new_tokenizer.vocab_size}")
+    
+    try:
+        assert len(new_dict) == new_tokenizer.vocab_size
+    except Exception as ex:
+        print("Check len of new_tokenizer's vocab and vocab_size property")
+        
     shutil.rmtree(plm_local_path)
 
 def test_uni_trans(reduction_path):
@@ -165,7 +186,11 @@ def test_uni_trans(reduction_path):
     new_tokenizer = MBart50TokenizerFast.from_pretrained(reduction_path)
     #Test uni directional translation
     test_set = [['I understood it, but will other people get it?', 'en_XX', 'ko_KR'],
-               ['저는 이해했는데 다른 사람들도 그걸 알아챌까요?', 'ko_KR', 'en_XX']]
+               ['저는 이해했는데 다른 사람들도 그걸 알아챌까요?', 'ko_KR', 'en_XX'],
+               ['I understood it, but will other people get it?', 'en_XX', 'zh_CN'],
+               ['我明白了，但其他人会明白吗？', 'zh_CN', 'en_XX'],
+               ['저는 이해했는데 다른 사람들도 그걸 알아챌까요?', 'ko_KR', 'zh_CN'],
+               ['我明白了，但其他人会明白吗？', 'zh_CN', 'ko_KR'],]
 
     for src, src_lang, tgt_lang in test_set:
         print(f"Source sentence : {src}")
@@ -174,25 +199,38 @@ def test_uni_trans(reduction_path):
         generated_tokens = new_model.generate(**encoded,
                                           forced_bos_token_id=new_tokenizer.lang_code_to_id[tgt_lang]
         )
-        print(new_tokenizer.batch_decode(generated_tokens, skip_special_tokens=True))
+        print(f'Tgt lang : {tgt_lang} / {new_tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)}')
         print('\n')
+
+    sample = '2020년 6월 한 경찰관이 제로지 플로이드를 살해한 직후, 제프 베조스는 BLM을 옹호했다'
+    assert new_tokenizer.decode(new_tokenizer(sample).input_ids, skip_special_tokens=True) == ''.join(new_tokenizer.tokenize(sample)).replace('▁', ' ').strip()
 
 def main(args):
     pre_config, pre_tokenizer, pre_model = prepare_huggingface_plm(plm_name=args.plm_name, 
                                                        save_path=args.plm_local_path)
     pre_spm = sentencepiece_model_pb2.ModelProto()
-    pre_spm.ParseFromString(open(f"{args.plm_local_path}/sentencepiece.bpe.model", 'rb').read())
-
-    regex_patterns = [
-        {'num':re.compile(r'[0-9]')},
-        {'punc':re.compile(r"^▁?[!\"#$%&\\'\(\)*\+,\-\./:;<=>\?@\[\]\^_`{\|}~]$")},
-        {'ko':re.compile("▁?[\uAC00-\uD7AF|\u1100-\u11FF|\uA960-\uA97F|\uD7B0-\uD7FF|\u3130-\u318F]+")},
-        {'en':re.compile(r'▁?[a-zA-Z]+')},
-        {'hanja':re.compile("▁?[\u2e80-\u2eff\u31c0-\u31ef\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fbf\uf900-\ufaff]+")}]
+    
+    if args.use_pretrained_spm:
+        pre_spm.ParseFromString(open("./src/sentencepiece/spiece.model", 'rb').read())
+        regex_patterns = [{'all':re.compile(r'.*')}]
+    else:
+        '''
+        If you extract specific lang's words in pretrained mBart50 vocab,
+        you should define regex pattern you want select.
+        And if '▁' is omitted in vocab, it will be generated '<unk>' token
+        in case of encoding sequence, like "['▁', '2', '0', '2', '0', '년', ~~]"
+        '''
+        pre_spm.ParseFromString(open(f"{args.plm_local_path}/sentencepiece.bpe.model", 'rb').read())
+        regex_patterns = [
+            {'num':re.compile(r'[0-9]')},
+            {'punc':re.compile(r"^▁?[!\"#$%&\\'\(\)*\+,\-\./:;<=>\?@\[\]\^_▁`{\|}~]$")},
+            {'ko':re.compile("▁?[\uAC00-\uD7AF|\u1100-\u11FF|\uA960-\uA97F|\uD7B0-\uD7FF|\u3130-\u318F]+")},
+            {'en':re.compile(r'▁?[a-zA-Z]+')},
+            {'hanja':re.compile("▁?[\u2e80-\u2eff\u31c0-\u31ef\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fbf\uf900-\ufaff]+")}
+        ]
 
     filtered_lang_dict = extract_spm_vocab(spm=pre_spm, regex_patterns=regex_patterns)
     new_spm = reduce_spm(pre_spm, filtered_lang_dict)
-
 
     # Backup the old model
     Path(f"{args.plm_local_path}/sentencepiece.bpe.model").rename(f"{args.plm_local_path}/sentencepiece.bpe.model.old")
