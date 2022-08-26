@@ -102,7 +102,7 @@ def main(args):
     print(f"SRC LANG & ID > {args.src_lang} : {mbart_tokenizer.vocab[args.src_lang]}")
     print(f"TGT LANG & ID > {args.tgt_lang} : {mbart_tokenizer.vocab[args.tgt_lang]}")
     print(f"mBart's EOS Token & ID > {mbart_tokenizer.eos_token} : {mbart_tokenizer.eos_token_id}\n")
-    
+'''    
     output_dir = f"{args.base_path}/src/ftm/{args.exp_name}-finetuned-{args.src_lang}-to-{args.tgt_lang}"
     train_args = Seq2SeqTrainingArguments(
         output_dir,
@@ -141,7 +141,7 @@ def main(args):
 
     trainer.save_model(
         f'{args.base_path}/src/ftm/{args.exp_name}-finetuned-{args.src_lang}-to-{args.tgt_lang}/final_checkpoint')
-
+'''
 
 if __name__ == '__main__':
     args = define_argparser()
