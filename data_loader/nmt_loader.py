@@ -1,83 +1,28 @@
 import os
 import datasets
-import itertools
 import pandas as pd
-import numpy as np
 from time import perf_counter as pc
 from datasets import Dataset
 from tqdm import tqdm
-from bashplotlib.histogram import plot_hist
+
+from .utils import *
+
 
 class NmtDataLoader:
-    def __init__(self, mbart_tokenizer, preprocessor, corpus_path):
+    def __init__(self, mbart_tokenizer, preprocessor, corpus_path, packing, packing_size=256, hybrid=True):
         self.tokenizer = mbart_tokenizer
         self.preprocessor = preprocessor
-        self.src_lang, self.tgt_lang = self.preprocessor.properties['src_lang'], self.preprocessor.properties['tgt_lang']
-        self.max_token_length = self.preprocessor.properties['max_token_length']
+        self.src_lang, self.tgt_lang = self.preprocessor.properties["src_lang"], self.preprocessor.properties["tgt_lang"]
+        self.max_token_length = self.preprocessor.properties["max_token_length"]
 
-        self.train_dataset = self.get_parallel_dataset(corpus_path, category='train')
-        self.eval_dataset = self.get_parallel_dataset(corpus_path, category='valid')
+        self.train_dataset = self.get_parallel_dataset(corpus_path, "train", packing, packing_size, hybrid)
+        self.eval_dataset = self.get_parallel_dataset(corpus_path, "valid", packing, packing_size, hybrid)
         self.raw_datasets = datasets.DatasetDict({"train": self.train_dataset, "validation": self.eval_dataset})
-    
-    def _batch(self, iterable, n=1):
-        l = len(iterable)
-        for ndx in range(0, l, n):
-            yield iterable[ndx:min(ndx + n, l)]
-    
-    def _packing_data(self, src_data, tgt_data, batch_size):
-        start = pc()
-        src_batched = [(s, [len(tokens) for tokens in self.tokenizer(s, add_special_tokens=True).input_ids]) for s in self._batch(src_data, batch_size)]
-        src_data, src_lens = list(itertools.chain(*[item[0] for item in src_batched])), list(itertools.chain(*[item[1] for item in src_batched]))
 
-        tgt_batched = [(t, [len(tokens) for tokens in self.tokenizer(t, add_special_tokens=True).input_ids]) for t in self._batch(tgt_data, batch_size)]
-        tgt_data, tgt_lens = list(itertools.chain(*[item[0] for item in tgt_batched])), list(itertools.chain(*[item[1] for item in tgt_batched]))
-        end = pc()
-        print(f"Elapsed time for tokenizing batched src & tgt data : {end-start}")
-
-        assert len(src_data) == len(tgt_data) == len(src_lens) == len(tgt_lens)
-        print("Distribution of source sentense's len")
-        plot_hist(src_lens, bincount=100)
-        print("Distribution of target sentense's len")
-        plot_hist(tgt_lens, bincount=100)
-
-        parallel_data = sorted(zip(src_data, tgt_data, src_lens, tgt_lens),key = lambda item:item[2], reverse = False)
-        print(f"Len of parallel data : {len(parallel_data)}")
-
-        trigger, src_len, tgt_len = 0, 0, 0
-        packed_src, packed_tgt, packed_len = [], [], []
-        joined_src, joined_tgt = [], []
-
-        for src, tgt, src_token_num, tgt_token_num in tqdm(parallel_data, total=len(parallel_data)):
-            sent_len = src_token_num if src_token_num > tgt_token_num else tgt_token_num
-
-            if trigger + sent_len > self.max_token_length:
-                packed_src.append(joined_src)
-                packed_tgt.append(joined_tgt)
-                packed_len.append([src_len,tgt_len])
-
-                joined_src, joined_tgt = [], []
-                joined_src.append(src)
-                joined_tgt.append(tgt)
-                src_len, tgt_len = src_token_num, tgt_token_num
-
-                trigger = sent_len
-            else:
-                joined_src.append(src)
-                joined_tgt.append(tgt)
-                src_len += src_token_num
-                tgt_len += tgt_token_num
-                trigger += sent_len
-
-        print(f"Packed efficiency : {np.array(packed_len).mean(axis=0)} / {np.array(packed_len).mean(axis=0)/self.max_token_length}")
-        print(f"Len of packed data : {len(packed_src)}, {len(packed_tgt)}")
-        print(f"*****Quantile of packing sents : {np.quantile([item[0] for item in packed_len], [0.1, 0.25, 0.5, 0.75, 0.9, 1])}*****")
-        plot_hist([item[0] for item in packed_len], bincount=100)
-        return packed_src, packed_tgt, packed_len
-
-    def get_parallel_dataset(self, corpus_path, category='train', packing=True, batch_size=256):
-        '''
+    def get_parallel_dataset(self, corpus_path, category, packing, packing_size, hybrid):
+        """
         Load splited src&tgt lang's corpus into huggingface dataset format
-        '''
+        """
         category_data = []
         src_path = os.path.join(corpus_path, category)
         tgt_path = os.path.join(corpus_path, category)
@@ -86,50 +31,80 @@ class NmtDataLoader:
             src_data = src.readlines()
             tgt_data = tgt.readlines()
 
-        if packing and (batch_size is not None):
-            packed_src, packed_tgt, packed_len = self._packing_data(src_data, tgt_data, batch_size)
-            src_data, tgt_data = [' '.join(sents) for sents in packed_src], [' '.join(sents) for sents in packed_tgt]
+        if packing and (packing_size is not None):
+            print('Merge sentences into Segments...')
+            packed_src, packed_tgt, packed_len = packing_data(self.tokenizer, src_data, tgt_data, packing_size, self.max_token_length, merge_direction='bidirection')
+            if hybrid:
+                print('Prepare train data using sents & segments unit')
+                src_data = [s.strip() for s in src_data] + [" ".join(sents) for sents in packed_src] * 6
+                tgt_data = [s.strip() for s in tgt_data] + [" ".join(sents) for sents in packed_tgt] * 6
+                '''
+                seen, seen_src, seen_tgt = set(), {}, {}
+                dupes_ix = []
+                uniq_src, uniq_tgt = [], []
+
+                for i, sent in tqdm(enumerate(zip(src_data, tgt_data)), total=len(src_data)):
+                    if sent[1] in seen:
+                        pass
+                    else:
+                        seen.add(sent[1])
+                        seen_src[i], seen_tgt[i] = sent[0], sent[1]
+
+                src_data, tgt_data = list(seen_src.values()), list(seen_tgt.values())
+                assert len(src_data) == len(tgt_data)
+                print(f"Duplicate cases # : {len(dupes_ix)}:")
+                print(f"Uniq sent & segments unit # : {len(src_data)}")
+                '''
+            else:
+                print('Prepare train data using only segments unit')
+                src_data, tgt_data = [" ".join(sents) for sents in packed_src], [" ".join(sents) for sents in packed_tgt]
         else:
-            pass
+            print('No packing..')
 
         for i, lines in enumerate(tqdm(zip(src_data, tgt_data), total=len(src_data))):
             category_data.append(
                 {
                     "translation": {
-                        f"{self.src_lang}": lines[0].rstrip('\n'),
-                        f"{self.tgt_lang}": lines[1].rstrip('\n'),
+                        f"{self.src_lang}": lines[0].rstrip("\n"),
+                        f"{self.tgt_lang}": lines[1].rstrip("\n"),
                     }
                 }
             )
         return Dataset.from_pandas(pd.DataFrame(category_data))
 
     def get_tokenized_dataset(self, batch_size=20000, num_proc=8):
-        self.tokenized_datasets = self.raw_datasets.map(self.preprocessor.preprocess, batched=True, 
-                batch_size=batch_size, remove_columns=self.raw_datasets["train"].column_names, 
-                fn_kwargs=self.preprocessor.properties, num_proc=num_proc)
+        self.tokenized_datasets = self.raw_datasets.map(
+            self.preprocessor.preprocess,
+            batched=True,
+            batch_size=batch_size,
+            remove_columns=self.raw_datasets["train"].column_names,
+            fn_kwargs=self.preprocessor.properties,
+            num_proc=num_proc,
+        )
 
         return self.tokenized_datasets
 
 
 class Processor:
-    def __init__(self, mbart_tokenizer, src_lang='en_XX', tgt_lang='ko_KR', max_token_length=512,
-            drop=True, bi_direction=True):
-        '''
+    def __init__(self, mbart_tokenizer, src_lang="en_XX", tgt_lang="ko_KR", max_token_length=512, drop=True, bi_direction=True):
+        """
         Argments for huggingface dataset's user defined map function
         Ref) During pre-training, mbart use instance format of up to 512 tokens
-        '''
-        self.properties = {"mbart_tokenizer": mbart_tokenizer,
-                           "src_lang": src_lang,
-                           "tgt_lang": tgt_lang,
-                           "max_token_length": max_token_length,
-                           "drop_case":drop,
-                           "bi_direction":bi_direction}
+        """
+        self.properties = {
+            "mbart_tokenizer": mbart_tokenizer,
+            "src_lang": src_lang,
+            "tgt_lang": tgt_lang,
+            "max_token_length": max_token_length,
+            "drop_case": drop,
+            "bi_direction": bi_direction,
+        }
 
     @staticmethod
     def preprocess(examples, mbart_tokenizer, src_lang, tgt_lang, max_token_length, drop_case, bi_direction):
-        '''
+        """
         User defined map function for huggingface dataset
-        '''
+        """
         mbart_tokenizer.src_lang = src_lang
         mbart_tokenizer.tgt_lang = tgt_lang
 
@@ -145,7 +120,7 @@ class Processor:
             srcs_ids, srcs_attn, tgts_ids, drop_case = [], [], [], []
 
             for src, src_attn, tgt in zip(model_inputs.input_ids, model_inputs.attention_mask, labels.input_ids):
-                if len(src) < max_token_length and len(tgt) < max_token_length :
+                if len(src) < max_token_length and len(tgt) < max_token_length:
                     if bi_direction:
                         srcs_ids.extend([src, tgt])
                         srcs_attn.extend([src_attn, [1] * len(tgt)])
@@ -157,18 +132,16 @@ class Processor:
                         tgts_ids.append(tgt)
                         drop_case.append(src)
 
-            model_inputs['input_ids'] = srcs_ids
-            model_inputs['labels'] = tgts_ids
-            model_inputs['attention_mask'] = srcs_attn
+            model_inputs["input_ids"] = srcs_ids
+            model_inputs["labels"] = tgts_ids
+            model_inputs["attention_mask"] = srcs_attn
 
         else:
-            model_inputs = mbart_tokenizer(
-                inputs, max_length=max_token_length, truncation=True)
+            model_inputs = mbart_tokenizer(inputs, max_length=max_token_length, truncation=True)
 
             # Setup the tokenizer for targets
             with mbart_tokenizer.as_target_tokenizer():
-                labels = mbart_tokenizer(
-                    targets, max_length=max_token_length, truncation=True)
+                labels = mbart_tokenizer(targets, max_length=max_token_length, truncation=True)
 
             srcs_ids, srcs_attn, tgts_ids, drop_case = [], [], [], []
 
@@ -184,8 +157,8 @@ class Processor:
                     tgts_ids.append(tgt)
                     drop_case.append(src)
 
-            model_inputs['input_ids'] = srcs_ids
-            model_inputs['labels'] = tgts_ids
-            model_inputs['attention_mask'] = srcs_attn
+            model_inputs["input_ids"] = srcs_ids
+            model_inputs["labels"] = tgts_ids
+            model_inputs["attention_mask"] = srcs_attn
 
         return model_inputs

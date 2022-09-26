@@ -78,6 +78,21 @@ def define_argparser():
         action='store_true',
         help='Whether to train bi-direcional NMT Engine instead of uni_directional training.',
     )
+    parser.add_argument(
+        '--packing_data',
+        action='store_true',
+        help='Merge sentences into segments',
+    )
+    parser.add_argument(
+        "--packing_size",
+        default=256,
+        type=int
+    )
+    parser.add_argument(
+        '--hybrid',
+        action='store_true',
+        help='Prepare train data using sents & segments unit',
+    )
 
     args = parser.parse_args()
 
@@ -89,7 +104,7 @@ def main(args):
 
     preprocessor = Processor(mbart_tokenizer, args.src_lang, args.tgt_lang, args.max_token_length,
             args.drop_case, args.bi_direction)
-    loader = NmtDataLoader(mbart_tokenizer, preprocessor, args.corpus_path)
+    loader = NmtDataLoader(mbart_tokenizer, preprocessor, args.corpus_path, args.packing_data, args.packing_size, args.hybrid)
     tokenized_datasets = loader.get_tokenized_dataset(batch_size=20000, num_proc=8)
     print('\n', tokenized_datasets, '\n')
 
@@ -102,7 +117,7 @@ def main(args):
     print(f"SRC LANG & ID > {args.src_lang} : {mbart_tokenizer.vocab[args.src_lang]}")
     print(f"TGT LANG & ID > {args.tgt_lang} : {mbart_tokenizer.vocab[args.tgt_lang]}")
     print(f"mBart's EOS Token & ID > {mbart_tokenizer.eos_token} : {mbart_tokenizer.eos_token_id}\n")
-'''    
+    
     output_dir = f"{args.base_path}/src/ftm/{args.exp_name}-finetuned-{args.src_lang}-to-{args.tgt_lang}"
     train_args = Seq2SeqTrainingArguments(
         output_dir,
@@ -123,7 +138,8 @@ def main(args):
         logging_strategy='steps',
         log_level='info',
         report_to='tensorboard',
-        num_train_epochs=args.num_epochs,
+        num_train_epochs=1,
+        #num_train_epochs=args.num_epochs,
         fp16=True
     )
     print(f"Tensorboard logging dir : {train_args.logging_dir}")
@@ -141,7 +157,7 @@ def main(args):
 
     trainer.save_model(
         f'{args.base_path}/src/ftm/{args.exp_name}-finetuned-{args.src_lang}-to-{args.tgt_lang}/final_checkpoint')
-'''
+
 
 if __name__ == '__main__':
     args = define_argparser()
