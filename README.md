@@ -110,7 +110,7 @@ Install NPM
 To check if you have Node.js installed, run this command in your terminal:
 
 ```
-$ curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
+$ curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash -
 $ sudo apt-get install -y nodejs
 
 
