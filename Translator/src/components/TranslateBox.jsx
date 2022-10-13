@@ -1,4 +1,5 @@
 import axios from "axios";
+import TextareaAutosize from "react-textarea-autosize";
 import { useEffect, useState } from "react";
 import { SourceSelectBox, TargetSelectBox} from "./SelectBox";
 import { error, success } from "../utils/notification";
@@ -27,6 +28,9 @@ export const TranslateBox = () => {
         };
         if (source === "" || target === "") {
             return error("Please select language");
+        }
+	if (source == target) {
+            return error("Please select different language");
         }
         try {
 	    const json = JSON.stringify({ q, source, target})
@@ -73,7 +77,7 @@ export const TranslateBox = () => {
                 <div>
                     <SourceSelectBox id={'source'} select={handleSelectChange} />
                     <div className="box">
-                        <textarea onChange={(e) => { setQ(e.target.value) }} value={q} className="outputResult"></textarea>
+	    		<TextareaAutosize onChange={(e) => { setQ(e.target.value) }} value={q} className="outputResult"></TextareaAutosize>
                     </div>
                     <div className="iconBox">
                         <p>{q.length}/250</p>
@@ -102,4 +106,3 @@ export const TranslateBox = () => {
         </>
     );
 };
-
