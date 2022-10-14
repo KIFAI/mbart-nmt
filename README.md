@@ -1,5 +1,5 @@
 <h1 align="center"><b>Part #1. Mbart NMT Engine </b></h1>
-This project is about building a NMT ENGINE using MBART25 or MBART50 for LC type's documentation(EN > KO).
+This project is about building a NMT ENGINE using MBART25 or MBART50(EN <-> KO).
 
 ## 🚀 Features
 - Possible to use custom sentencepiece model & vocab
