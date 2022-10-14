@@ -1,5 +1,5 @@
-<h1 align="center"><b>Part #1. Mbart NMT Engine for LC(Letter of Credit) </b></h1>
-This project is about building a NMT ENGINE using MBARTCC25 PLM for LC type's documentation(EN > KO).
+<h1 align="center"><b>Part #1. Mbart NMT Engine </b></h1>
+This project is about building a NMT ENGINE using MBART25 or MBART50 for LC type's documentation(EN > KO).
 
 ## 🚀 Features
 - Possible to use custom sentencepiece model & vocab
@@ -7,6 +7,8 @@ This project is about building a NMT ENGINE using MBARTCC25 PLM for LC type's do
 - Good working on small domain data(<1M) and different language family
 - Futher performance benifit using back stranslation augmentation
 - Transformer architecture(bidirectional encoder and autoregressive decoder)
+- Bidirectional translation engine
+- Possibile fast model from using Ctrans or Onnx
 
 ### 1. Dependency
 ```
@@ -27,9 +29,9 @@ $ . mbart_env/bin/activate
 (mbart_env)$ python prepare_sentencepiece
 ```
 
-### 4. Reduce fairseq's mbartcc25 plm and convert to huggingface format
+### 4. Reduce huggingface's mbart50-m2m
 ```
-(mbart_env)$ python reduce_fairseq_plm.py
+(mbart_env)$ python reduce_hf_plm.py --plm_name facebook/mbart-large-50-many-to-many-mmt --plm_local_path ./src/plm/tmp_ckpt --reduction_path ./src/plm/reduced_hf_mbart50_m2m
 ```
 
 ### 5. Finetune
@@ -41,9 +43,7 @@ $ . mbart_env/bin/activate
 
 ### 6. evaluate
 ```
-(mbart_env)$ cd scripts
-(mbart_env)$ ./evaluate.sh
-#need to edit evaluation info
+(mbart_env)$ python evaluate.py
 ```
 
 <h1 align="center"><b>Part #2. Translator App</b></h1>
@@ -62,12 +62,13 @@ $ . mbart_env/bin/activate
     
 <br/>
 
-This project is about building a web application to translate LC type's documentation(EN > KO) using Mbart translator API. Here you will be able to translate between EN > KO languages. Whenever you type something, it will be automatically translated in the side panel. 
+This project is about building a web application to translate LC type's documentation(EN > KO) using Mbart translator API. Here you will be able to translate between EN <-> KO languages. Whenever you type something, it will be automatically translated in the side panel. 
 
 
 <br/>
 
-![Language Translator App](https://user-images.githubusercontent.com/60684500/177440422-1c50494c-b261-4735-98f7-08a1f728daaf.png)
+![image](https://user-images.githubusercontent.com/60684500/195746993-98d53da2-ec47-4dad-b243-83e94e3c8d24.png)
+
 <br/>
 
 
