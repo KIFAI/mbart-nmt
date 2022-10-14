@@ -3,7 +3,7 @@ import os, time
 import numpy as np
 from time import perf_counter as pc
 from matplotlib import pyplot as plt
-from transformers import MBartTokenizer, MBartForConditionalGeneration
+from transformers import MBartTokenizer, MBart50TokenizerFast, MBartForConditionalGeneration
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 
 def validate_vocab(ctrans_path):
@@ -69,7 +69,7 @@ def plotting(exp_name, beam_size, seq_len_list,
 
     #### 5. y축 세부설정
     yticks = round(max(ctrans_results + torch_results) / 5, 2)
-    ax.set_ylim([0.5,0.76])
+    #ax.set_ylim([0.5,0.76])
     ax.set_yticks([yticks*c for c in range(0,7,1)])
     ax.yaxis.set_tick_params(labelsize=10)
     ax.set_ylabel(f'{exp_name}', fontsize=14)
@@ -106,6 +106,7 @@ def present_height(ax, bar):
 def speed_test(
     ctrans_model,
     torch_model,
+    tokenizer,
     beam_range: range = range(2, 6, 1),
     warmup_range: range = range(0, 10, 1),
     inference_range: range = range(0, 10, 1),
@@ -149,8 +150,6 @@ def speed_test(
         else:
             srcs , refs = testset
 
-    tokenizer = MBartTokenizer.from_pretrained(torch_model.name_or_path)
-
     latency_xx, latency_yy = [], []
     bleu_xx, bleu_yy = [], []
 
@@ -179,10 +178,12 @@ def speed_test(
                 torch_model.eval()
                 torch_model.half()
             
-            warmup = [torch_model.generate(input_ids=input_ids,attention_mask=attention_mask,decoder_start_token_id=tokenizer.lang_code_to_id["ko_KR"],num_beams=j)
+            warmup = [torch_model.generate(input_ids=input_ids,attention_mask=attention_mask,
+                forced_bos_token_id=tokenizer.lang_code_to_id["ko_KR"],num_beams=j)
                  for i in warmup_range]
             c = pc()
-            o = [torch_model.generate(input_ids=input_ids,attention_mask=attention_mask,decoder_start_token_id=tokenizer.lang_code_to_id["ko_KR"],num_beams=j)
+            o = [torch_model.generate(input_ids=input_ids,attention_mask=attention_mask,
+                forced_bos_token_id=tokenizer.lang_code_to_id["ko_KR"],num_beams=j)
                  for i in inference_range][0]
             d = pc()
             pytorch_latency = (d - c)/len(inference_range)
@@ -240,12 +241,12 @@ def speed_test(
 
 if __name__ == "__main__":
     device = 'cuda'
-    ctrans_index, torch_index = 1, 2
-    plm_path = '/opt/project/translation/repo/mbart-nmt/src/ftm/aihub_lower_mbart-finetuned-en_XX-to-ko_KR/final_checkpoint'
+    ctrans_index, torch_index = 4,5 
+    #plm_path = '/opt/project/translation/repo/mbart-nmt/src/ftm/reduced_hf_mbart50_m2m'
+    plm_path = '/opt/project/translation/repo/mbart-nmt/src/ftm/cased_mbart50-finetuned-en_XX-to-ko_KR/checkpoint-61500'
     ctrans_path = './ctrans_fp16'
     
     converter = ctranslate2.converters.TransformersConverter(plm_path)
-    
     converter.convert(ctrans_path, force=True, quantization='float16')
     validate_vocab(ctrans_path)
 
@@ -253,6 +254,9 @@ if __name__ == "__main__":
             device=f"{device}" if device == "cuda" else "cpu",
             device_index=[0] if device=="cpu" else [ctrans_index])
     pytorch_model = MBartForConditionalGeneration.from_pretrained(plm_path, use_cache=True).to(f"{device}:{torch_index}")
+
+    tokenizer = MBart50TokenizerFast.from_pretrained(pytorch_model.name_or_path)
+    tokenizer.src_lang = "en_XX"
     
-    speed_test(ctrans_model=ctrans_model, torch_model=pytorch_model, 
+    speed_test(ctrans_model=ctrans_model, torch_model=pytorch_model, tokenizer=tokenizer,
             warmup_range = range(0, 10, 1), inference_range = range(0, 10, 1), device=f"{device}:{torch_index}")
