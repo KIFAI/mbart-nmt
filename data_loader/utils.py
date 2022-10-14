@@ -2,7 +2,7 @@ from lib2to3.pgen2 import token
 import os
 import itertools
 import numpy as np
-
+import random
 from typing import List, Tuple
 from tqdm import tqdm
 from time import perf_counter as pc
@@ -35,54 +35,24 @@ def __get_token_length(tokenizer, text_data: List[str], batch_size: int = 256, a
         add_special_tokens : 토큰화할 때 스페셜 토큰 포함 여부
     Returns :
         input_data(List[str]) : 입력 text 데이터 list(==text_data)
-        token_lens(List[int]) : 입력 데이터의 토큰의 size를 튜플로 갖는 리스트
+        token_lens(List[int]) : 입력 데이터의 토큰의 size 리스트
     """
     result = [(s, [len(tokens) for tokens in tokenizer(s, add_special_tokens=True).input_ids]) for s in __batch(text_data, batch_size)]
     return list(itertools.chain(*[item[0] for item in result])), list(itertools.chain(*[item[1] for item in result]))
 
 
-def packing_data(tokenizer, src_data, tgt_data, batch_size=256, max_token_length=256, merge_direction="bidirection"):
-    """
-    A function that sorts the sentences in short order and merges them within the max token length size.
-    Args:
-        tokenizer : mBart50 Tokenizer
-        src_data : Loaded source data from with open function, ex) ['src1\n', 'src2\n',...]
-        tgt_data : Loaded target data from with open function, ex) ['tgt1\n', 'tgt2\n',...]
-        batch_size : Batch size as many as you want split
-        max_token_length : Limited number of tokens when sent is tokenized from the called tokenizer function
-    Returns:
-        packed_src : List of List[str] packed by batch size, ex) [['src1\n', 'src2\n',...],['src10\n', 'src20\n',...],...]
-        packed_tgt : List of List[str] packed by batch size, ex) [['src1\n', 'src2\n',...],['src10\n', 'src20\n',...],...]
-        packed_len : Full-length list of packed sentences
-    """
-    start = pc()
-    src_data, src_lens = __get_token_length(tokenizer=tokenizer, text_data=src_data, batch_size=batch_size)
-    tgt_data, tgt_lens = __get_token_length(tokenizer=tokenizer, text_data=tgt_data, batch_size=batch_size)
-    end = pc()
-
-    print(f"Elapsed time for tokenizing batched src & tgt data : {end-start}")
-    print(f"Max length : {max(src_lens)}")
-
-    assert len(src_data) == len(tgt_data) == len(src_lens) == len(tgt_lens)
-    print("Distribution of source sentense's len")
-    plot_hist(src_lens, bincount=100)
-    print("Distribution of target sentense's len")
-    plot_hist(tgt_lens, bincount=100)
-
-    parallel_data = sorted(zip(src_data, tgt_data, src_lens, tgt_lens), key=lambda item: item[2], reverse=False)
-    print(f"Len of parallel data : {len(parallel_data)}")
-
+def get_merge_data(src_data, src_lens, tgt_data, tgt_lens, merge_direction="bidirection", max_token_length=256):
     trigger, src_len, tgt_len = 0, 0, 0
     packed_src, packed_tgt, packed_len = [], [], []
     joined_src, joined_tgt = [], []
 
     if merge_direction in ["unidirection", "bidirection"]:
+        # print(f"Merge datas in {merge_direction}")
         if merge_direction == "bidirection":
             # uniform mode
-            print(f"Merge datas in {merge_direction}")
             lens = [max(item) for item in zip(src_lens, tgt_lens)]
             merge_list, over_cnt = merge_data_by_limit(lens, limit=max_token_length)
-            print(f"over cnt {over_cnt}")
+            # print(f"over cnt {over_cnt}")
             for item in merge_list:
                 merge_src = list()
                 merge_tgt = list()
@@ -96,10 +66,10 @@ def packing_data(tokenizer, src_data, tgt_data, batch_size=256, max_token_length
                 packed_src.append(merge_src)
                 packed_tgt.append(merge_tgt)
                 packed_len.append([merge_token_num_src, merge_token_num_tgt])
-            print("bi",len(packed_src))
-            
+            # print("bi", len(packed_src))
+
         elif merge_direction == "unidirection":
-            print(f"Merge datas in {merge_direction}")
+            parallel_data = sorted(zip(src_data, tgt_data, src_lens, tgt_lens), key=lambda item: item[2], reverse=False)
             for src, tgt, src_token_num, tgt_token_num in tqdm(parallel_data, total=len(parallel_data)):
                 sent_len = src_token_num if src_token_num > tgt_token_num else tgt_token_num
 
@@ -120,20 +90,87 @@ def packing_data(tokenizer, src_data, tgt_data, batch_size=256, max_token_length
                     src_len += src_token_num
                     tgt_len += tgt_token_num
                     trigger += sent_len
-            print("uni",len(packed_src))
+            print("uni", len(packed_src))
     else:
         raise ValueError(f"Check merge direction type : {merge_direction}")
+    return packed_src, packed_tgt, packed_len
+
+
+def packing_data(tokenizer, df, group_key, src_key, tgt_key, batch_size=256, max_token_length=256, merge_direction="bidirection"):
+    """
+    A function that sorts the sentences in short order and merges them within the max token length size.
+    Args:
+        tokenizer : mBart50 Tokenizer
+        df : corpus dataframe
+        group_key : group by key name
+        src_key : source data column name
+        tgt_key : target data column name
+        batch_size : Batch size as many as you want split
+        max_token_length : Limited number of tokens when sent is tokenized from the called tokenizer function
+    Returns:
+        packed_src : List of List[str] packed by batch size, ex) [['src1\n', 'src2\n',...],['src10\n', 'src20\n',...],...]
+        packed_tgt : List of List[str] packed by batch size, ex) [['src1\n', 'src2\n',...],['src10\n', 'src20\n',...],...]
+        packed_len : Full-length list of packed sentences
+        time_num : 몇배 압축되었는지를 나타내는 수
+    """
+    start = pc()
+    packed_src, packed_tgt, packed_len = [], [], []
+    src_data, src_lens, tgt_data, tgt_lens = [], [], [], []
+    if group_key:
+        groups = df.groupby(group_key)
+        src_datas, tgt_datas = [], []
+        for group in groups:
+            src_datas.append(group[1][src_key].to_list())
+            tgt_datas.append(group[1][tgt_key].to_list())
+        end = pc()
+        for sd, td in zip(src_datas, tgt_datas):
+            sd, sl = __get_token_length(tokenizer=tokenizer, text_data=sd, batch_size=batch_size)
+            src_data.extend(sd)
+            src_lens.extend(sl)
+
+            td, tl = __get_token_length(tokenizer=tokenizer, text_data=td, batch_size=batch_size)
+            tgt_data.extend(td)
+            tgt_lens.extend(tl)
+
+            result = get_merge_data(sd, sl, td, tl, merge_direction, max_token_length)
+            packed_src.extend(result[0])
+            packed_tgt.extend(result[1])
+            packed_len.extend(result[2])
+    else:
+        src_data = df[src_key].to_list()
+        tgt_data = df[tgt_key].to_list()
+        src_data, src_lens = __get_token_length(tokenizer=tokenizer, text_data=src_data, batch_size=batch_size)
+        tgt_data, tgt_lens = __get_token_length(tokenizer=tokenizer, text_data=tgt_data, batch_size=batch_size)
+        end = pc()
+        packed_src, packed_tgt, packed_len = get_merge_data(src_data, src_lens, tgt_data, tgt_lens, merge_direction, max_token_length)
+
+    print(f"Elapsed time for tokenizing batched src & tgt data : {end-start}")
+    print(f"Max length : {max(src_lens)}")
+
+    assert len(src_data) == len(tgt_data) == len(src_lens) == len(tgt_lens)
+    print("Distribution of source sentense's len")
+    plot_hist(src_lens, bincount=100)
+    print("Distribution of target sentense's len")
+    plot_hist(tgt_lens, bincount=100)
+
+    # parallel_data = sorted(zip(src_data, tgt_data, src_lens, tgt_lens), key=lambda item: item[2], reverse=False)
+    print(f"Len of parallel data : {len(src_data)}")
 
     print(f"Packed efficiency : {np.array(packed_len).mean(axis=0)} / {np.array(packed_len).mean(axis=0)/max_token_length}")
-    print(f"overed cnt : {len([c for c in packed_len if c[0] > 256])}")
-    example = [c for c in packed_len if c[0] <= 256]
+    print(f"overed cnt : {len([c for c in packed_len if c[0] > max_token_length])}")
+    example = [c for c in packed_len if c[0] <= max_token_length]
     print(f"Inbound sent's mean length : {np.array(example).mean(axis=0)}")
     print(f"Len of packed data : {len(packed_src)}, {len(packed_tgt)}")
     print(f"*****Quantile of packing sents : {np.quantile([item[0] for item in packed_len], [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1])}*****")
 
     plot_hist([item[0] for item in packed_len], bincount=100)
 
-    return packed_src, packed_tgt, packed_len
+    print(f"origin length {len(src_data)}")
+    print(f"packed length {len(packed_src)}")
+    time_num = len(src_data) / len(packed_src)
+    print(f"compression rate: {100 - len(packed_src)/len(src_data)*100:.2f}%(x{time_num:.2f})")
+
+    return packed_src, packed_tgt, packed_len, time_num
 
 
 def bisect_left(a, x, lo=0, hi=None, *, key=None):
@@ -177,6 +214,13 @@ def __get_lengths_by_inputs(input_data: List[str]):
         length_list(list) : 입력 문장들의 길이 리스트
     """
     return [len(data) for data in input_data]
+
+
+def print_histogram(src_lens, tgt_lens):
+    print("Distribution of source sentense's len")
+    plot_hist(src_lens, bincount=100)
+    print("Distribution of target sentense's len")
+    plot_hist(tgt_lens, bincount=100)
 
 
 def __get_histogram_by_length(input_data: List[str]):
@@ -238,3 +282,10 @@ def merge_data_by_limit(input_data: List[int], limit: int):
 
 def __get_index_tuple_by_list(input_data: List[Tuple]):
     return [(index, item) for index, item in enumerate(input_data)]
+
+
+def shuffle_packed_data(seed, packed_data):
+    random.seed(seed)
+    for item in packed_data:
+        item = random.shuffle(item)
+    return packed_data

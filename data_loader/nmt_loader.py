@@ -1,4 +1,4 @@
-import os
+import os, glob
 import datasets
 import pandas as pd
 from time import perf_counter as pc
@@ -6,39 +6,95 @@ from datasets import Dataset
 from tqdm import tqdm
 
 from .utils import *
+import math
 
 
 class NmtDataLoader:
-    def __init__(self, mbart_tokenizer, preprocessor, corpus_path, packing, packing_size=256, hybrid=True):
+    def __init__(self, mbart_tokenizer, preprocessor, corpus_path, packing, packing_size=256, hybrid=True, group_key="domain"):
         self.tokenizer = mbart_tokenizer
         self.preprocessor = preprocessor
         self.src_lang, self.tgt_lang = self.preprocessor.properties["src_lang"], self.preprocessor.properties["tgt_lang"]
         self.max_token_length = self.preprocessor.properties["max_token_length"]
 
-        self.train_dataset = self.get_parallel_dataset(corpus_path, "train", packing, packing_size, hybrid)
-        self.eval_dataset = self.get_parallel_dataset(corpus_path, "valid", packing, packing_size, hybrid)
+        train_corpus_path = glob.glob(os.path.join(corpus_path, "train_*.tsv"))[0]
+        valid_corpus_path = glob.glob(os.path.join(corpus_path, "valid_*.tsv"))[0]
+        self.train_dataset = self.get_parallel_dataset(train_corpus_path, packing, packing_size, hybrid, group_key)
+        self.eval_dataset = self.get_parallel_dataset(valid_corpus_path, packing, packing_size, hybrid, group_key)
         self.raw_datasets = datasets.DatasetDict({"train": self.train_dataset, "validation": self.eval_dataset})
 
-    def get_parallel_dataset(self, corpus_path, category, packing, packing_size, hybrid):
+    def get_parallel_dataset(self, corpus_path, packing, packing_size, hybrid, group_key, header=["domain", "subdomain", "ko_KR", "en_XX"]):
         """
         Load splited src&tgt lang's corpus into huggingface dataset format
         """
         category_data = []
-        src_path = os.path.join(corpus_path, category)
-        tgt_path = os.path.join(corpus_path, category)
+        # src_path = os.path.join(corpus_path, category)
+        # tgt_path = os.path.join(corpus_path, category)
 
-        with open(f"{src_path}.{self.src_lang}", "r") as src, open(f"{tgt_path}.{self.tgt_lang}", "r") as tgt:
-            src_data = src.readlines()
-            tgt_data = tgt.readlines()
+        # with open(f"{src_path}.{self.src_lang}", "r") as src, open(f"{tgt_path}.{self.tgt_lang}", "r") as tgt:
+        #     src_data = src.readlines()
+        #     tgt_data = tgt.readlines()
+        """
+        corpus = read_file(corpus_path, "\t", -1)
+        # 데이터에 hearder가 없으므로 컬럼 인덱스로 데이터를 찾아야해서 properties에 추가함
+        corpus_dict = {col_name: index2data(corpus, i) for i, col_name in enumerate(header)}
+        corpus = pd.DataFrame(corpus_dict)
+
+        src_data = corpus[self.src_lang].to_list()
+        tgt_data = corpus[self.tgt_lang].to_list()
+        """
+        corpus = pd.read_csv(corpus_path, sep="\t")
+        print(corpus.head())
+        src_data, tgt_data = corpus[self.src_lang], corpus[self.tgt_lang]
 
         if packing and (packing_size is not None):
-            print('Merge sentences into Segments...')
-            packed_src, packed_tgt, packed_len = packing_data(self.tokenizer, src_data, tgt_data, packing_size, self.max_token_length, merge_direction='bidirection')
+            print("Merge sentences into Segments...")
+            # packing_data(tokenizer, df, group_key, src_key, tgt_key, batch_size=256, max_token_length=256, merge_direction="bidirection")
+            packed_src, packed_tgt, packed_len, time_num = packing_data(
+                self.tokenizer, corpus, group_key, self.src_lang, self.tgt_lang, packing_size, self.max_token_length, merge_direction="bidirection"
+            )
+            # packed_src, packed_tgt, packed_len = packing_data(
+            #     self.tokenizer, src_data, tgt_data, packing_size, self.max_token_length, merge_direction="bidirection"
+            # )
             if hybrid:
-                print('Prepare train data using sents & segments unit')
-                src_data = [s.strip() for s in src_data] + [" ".join(sents) for sents in packed_src] * 6
-                tgt_data = [s.strip() for s in tgt_data] + [" ".join(sents) for sents in packed_tgt] * 6
-                '''
+                time_num_ceil = math.ceil(time_num)
+                packed_src_data, packed_tgt_data = [], []
+                for i in range(time_num_ceil):
+                    packed_src_data.extend(shuffle_packed_data(i, packed_src))
+                    packed_tgt_data.extend(shuffle_packed_data(i, packed_tgt))
+                # src, tgt 맞는지 확인 필
+                # 데이터를 증강 후 전체 src 길이로 자름
+                print("len(packed_src_data) :", len(packed_src_data))
+                print("len(packed_tgt_data) :", len(packed_tgt_data))
+                packed_src_data = packed_src_data[: len(src_data)]
+                packed_tgt_data = packed_tgt_data[: len(tgt_data)]
+                print("src_data len :", len(src_data))
+
+                src_data = [s.strip() for s in src_data]
+                tgt_data = [s.strip() for s in tgt_data]
+                src_data.extend([" ".join(sents) for sents in packed_src_data])
+                tgt_data.extend([" ".join(sents) for sents in packed_tgt_data])
+                
+                random.seed(10)
+                ixs = list(range(len(src_data)))
+                random.shuffle(ixs)
+                src_data = [src_data[i] for i in ixs]
+                tgt_data = [tgt_data[i] for i in ixs]
+
+                print("total len : ", len(src_data))
+
+                # 테스트 코드
+                sample = random.sample(range(len(src_data)), 15)
+                print(sample)
+                for i in sample:
+                    print("*" * 100)
+                    print(i)
+                    print(src_data[i])
+                    print(tgt_data[i])
+
+                print("Prepare train data using sents & segments unit")
+                # src_data = [s.strip() for s in src_data] + [" ".join(sents) for sents in packed_src] * 6
+                # tgt_data = [s.strip() for s in tgt_data] + [" ".join(sents) for sents in packed_tgt] * 6
+                """
                 seen, seen_src, seen_tgt = set(), {}, {}
                 dupes_ix = []
                 uniq_src, uniq_tgt = [], []
@@ -54,12 +110,12 @@ class NmtDataLoader:
                 assert len(src_data) == len(tgt_data)
                 print(f"Duplicate cases # : {len(dupes_ix)}:")
                 print(f"Uniq sent & segments unit # : {len(src_data)}")
-                '''
+                """
             else:
-                print('Prepare train data using only segments unit')
+                print("Prepare train data using only segments unit")
                 src_data, tgt_data = [" ".join(sents) for sents in packed_src], [" ".join(sents) for sents in packed_tgt]
         else:
-            print('No packing..')
+            print("No packing..")
 
         for i, lines in enumerate(tqdm(zip(src_data, tgt_data), total=len(src_data))):
             category_data.append(

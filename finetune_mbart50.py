@@ -1,6 +1,7 @@
 import argparse
+import glob
 from data_loader.nmt_loader import NmtDataLoader, Processor
-from transformers import (MBartForConditionalGeneration, MBartTokenizer, MBart50TokenizerFast,
+from transformers import (EarlyStoppingCallback, MBartForConditionalGeneration, MBart50TokenizerFast,
                           Seq2SeqTrainer, Seq2SeqTrainingArguments, DataCollatorForSeq2Seq, set_seed)
 
 # Helpful function for reproducible training from setting the seed in random, numpy, torch, and/or tf
@@ -93,6 +94,11 @@ def define_argparser():
         action='store_true',
         help='Prepare train data using sents & segments unit',
     )
+    parser.add_argument(
+        '--resume',
+        action='store_true',
+        help='Resume training pre-checkpoint',
+    )
 
     args = parser.parse_args()
 
@@ -134,12 +140,12 @@ def main(args):
         label_smoothing_factor=0.0,  # default 0.0
         save_total_limit=1,
         save_steps=500,
+        #load_best_model_at_end=True,
         logging_steps=500,
         logging_strategy='steps',
         log_level='info',
         report_to='tensorboard',
-        num_train_epochs=1,
-        #num_train_epochs=args.num_epochs,
+        num_train_epochs=args.num_epochs,
         fp16=True
     )
     print(f"Tensorboard logging dir : {train_args.logging_dir}")
@@ -150,10 +156,18 @@ def main(args):
         train_dataset=tokenized_datasets["train"],
         eval_dataset=tokenized_datasets["validation"],
         data_collator=data_collator,
-        tokenizer=mbart_tokenizer
+        tokenizer=mbart_tokenizer,
+        # callbacks = [EarlyStoppingCallback(early_stopping_patience=5)]
         # compute_metrics=compute_metrics
     )
-    trainer.train()
+    if args.resume:
+        ckpts = glob.glob(f'{args.base_path}/src/ftm/{args.exp_name}-finetuned-{args.src_lang}-to-{args.tgt_lang}/checkpoint-*')
+        resume_latest_ckpt = sorted(ckpts)[-1]
+        print(f'Resume training {resume_latest_ckpt}')
+        trainer.train(
+                resume_from_checkpoint=resume_latest_ckpt)
+    else:
+        trainer.train()
 
     trainer.save_model(
         f'{args.base_path}/src/ftm/{args.exp_name}-finetuned-{args.src_lang}-to-{args.tgt_lang}/final_checkpoint')
