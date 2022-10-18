@@ -1,28 +1,84 @@
 import time
-from flask import Flask, request
-from flask_cors import CORS
-from transformers import (MBartForConditionalGeneration, MBartTokenizer)
+import itertools
+import nltk
+import ctranslate2
 
+from typing import Optional
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from transformers import (MBartForConditionalGeneration, MBart50TokenizerFast)
 
-model_path = "./src/ftm/mbart-custom-spm-finetuned-en_XX-to-ko_KR/final_checkpoint"
-tokenizer = MBartTokenizer.from_pretrained(model_path)
-model = MBartForConditionalGeneration.from_pretrained(model_path).to(f"cuda:0")
-model.half()
+BATCH_INFERENCE = True
 
-app = Flask("api_test")
-CORS(app)
-@app.route('/', methods=['POST'])
-def hello():
-    sources = request.get_json()
-    print(sources)
-    
+ctrans_path = "./Ctrans-MBart/ctrans_fp16"
+
+tokenizer = MBart50TokenizerFast.from_pretrained(ctrans_path)
+model = ctranslate2.Translator(ctrans_path, inter_threads=1, device="cuda", device_index=[4])
+
+app = FastAPI()
+
+origins = [
+        "http://10.17.23.228:11757"
+        ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+def tokenize(x):
+    return tokenizer.tokenize(x)
+
+def convert_to_inputs(tokenized_sents, max_length=120):
+        
+    input_len, start_ix = 0, 0
+    segments = []
+    for i, t_s in enumerate(tokenized_sents):
+        input_len += len(t_s)
+        if i+1 == len(tokenized_sents):
+            segments.append([tokenizer.src_lang] + list(itertools.chain(*tokenized_sents[start_ix:])) + [tokenizer.eos_token])
+        elif input_len + len(tokenized_sents[i+1]) > max_length:
+            segments.append([tokenizer.src_lang] + list(itertools.chain(*tokenized_sents[start_ix:i+1])) + [tokenizer.eos_token])
+            input_len = 0
+            start_ix = i+1
+        else:
+            pass
+    return segments
+
+def detokenize(x):
+    return tokenizer.convert_tokens_to_string(x.hypotheses[0][1:])
+
+class Item(BaseModel):
+    q: str
+    source: str
+    target: str
+
+@app.post("/")
+async def translate(item: Item):
+    req = dict(item)
+    print(req)
     start = time.time()
-    inputs = tokenizer([sources['q'].upper()], return_tensors="pt", padding=True).to(f'cuda:0')
-    translated_tokens = model.generate(**inputs, decoder_start_token_id=tokenizer.lang_code_to_id["ko_KR"], num_beams=3, early_stopping=True, max_length=150)
-    pred = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)
+    tokenizer.src_lang = req["source"]
+
+    if BATCH_INFERENCE:
+        splitted_sents = nltk.sent_tokenize(req['q'])
+        print(f"Splitted len : {len(splitted_sents)}")
+        if len(splitted_sents) ==1 :
+            inputs = [[tokenizer.src_lang] + tokenizer.tokenize(splitted_sents[0]) + [tokenizer.eos_token]]
+        else:
+            inputs = convert_to_inputs(list(map(tokenizer.tokenize, splitted_sents)))
+            print(f"Segments len : {len(inputs)}")
+    else:
+        inputs = list(map(convert_to_inputs, [req['q']]))
+    
+    assert req['q'] == tokenizer.convert_tokens_to_string(list(itertools.chain(*[t[1:-1] for t in inputs])))
+    
+    translated_tokens = model.translate_batch(source=inputs, target_prefix=[[req["target"]]]*len(inputs) ,beam_size=2)
+    pred = list(map(detokenize, translated_tokens))
     end = time.time()
     print(f"pred: {pred}\nElaped time : {end-start}")
-    return {'translatedText' : pred[0]}
-
-if __name__ == '__main__':
-    app.run('0.0.0.0', port=5000, debug=True)
+    return {'translatedText' : ' '.join(pred)}
