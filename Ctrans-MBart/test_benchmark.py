@@ -52,7 +52,7 @@ def plotting(exp_name, beam_size, seq_len_list,
             'Pytorch':torch_results}
 
     #### 2. matplotlib의 figure 및 axis 설정
-    fig, ax = plt.subplots(1,1,figsize=(10,5)) # 1x1 figure matrix 생성, 가로(7인치)x세로(5인치) 크기지정
+    fig, ax = plt.subplots(1,1,figsize=(7,4)) # 1x1 figure matrix 생성, 가로(7인치)x세로(5인치) 크기지정
     colors = ['orange', 'salmon']
     width = 0.15
     
@@ -241,22 +241,23 @@ def speed_test(
 
 if __name__ == "__main__":
     device = 'cuda'
-    ctrans_index, torch_index = 4,5 
-    #plm_path = '/opt/project/translation/repo/mbart-nmt/src/ftm/reduced_hf_mbart50_m2m'
-    plm_path = '/opt/project/translation/repo/mbart-nmt/src/ftm/cased_mbart50-finetuned-en_XX-to-ko_KR/checkpoint-61500'
+    ctrans_index, torch_index = 4,5
+    plm_path = '/opt/project/translation/repo/mbart-nmt/src/ftm/cased_mbart50-finetuned-en_XX-to-ko_KR/ckpt-epoch1'
     ctrans_path = './ctrans_fp16'
     
     converter = ctranslate2.converters.TransformersConverter(plm_path)
     converter.convert(ctrans_path, force=True, quantization='float16')
     validate_vocab(ctrans_path)
 
+    tokenizer = MBart50TokenizerFast.from_pretrained(plm_path)
+    tokenizer.save_pretrained(ctrans_path)
+    tokenizer.src_lang = "en_XX"
+
     ctrans_model = ctranslate2.Translator(ctrans_path, inter_threads=1, 
             device=f"{device}" if device == "cuda" else "cpu",
             device_index=[0] if device=="cpu" else [ctrans_index])
     pytorch_model = MBartForConditionalGeneration.from_pretrained(plm_path, use_cache=True).to(f"{device}:{torch_index}")
 
-    tokenizer = MBart50TokenizerFast.from_pretrained(pytorch_model.name_or_path)
-    tokenizer.src_lang = "en_XX"
-    
     speed_test(ctrans_model=ctrans_model, torch_model=pytorch_model, tokenizer=tokenizer,
             warmup_range = range(0, 10, 1), inference_range = range(0, 10, 1), device=f"{device}:{torch_index}")
+
