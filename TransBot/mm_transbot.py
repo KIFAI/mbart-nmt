@@ -18,6 +18,9 @@ mm = Driver({
 mm.login()
 
 async def trans_handler(e):
+    '''
+    You can refer mattermost API V4 SPEC at https://documenter.getpostman.com/view/4508214/RW8FERUn#auth-info-bb2c27c2-5029-4448-9d56-46728343bac9
+    '''
     message = json.loads(e)
     event = message.get('event', None)
     print('event', message)
@@ -45,8 +48,6 @@ async def trans_handler(e):
                 mm.posts.create_post(options={'channel_id':channel_id, 'file_ids':[file_id]})
 
             else:
-        #        src_lang, tgt_lang = {channel_name == 'enko': ('en_XX', 'ko_KR'), channel_name == 'koen' : ('ko_KR', 'en_XX')}.get(True, ('en_XX', 'ko_KR'))
-        #        print(f"src lang : {src_lang}, tgt lang : {tgt_lang}")
                 trans = requests.post(trans_endpoint, data=json.dumps({'q':input_text, 'source':src_lang, 'target':tgt_lang})).json()['translatedText']
                 requests.post(url=f'{base_url}/api/v4/posts',
                         headers={'Content-Type': 'application/json;charset=UTF-8', 'Authorization':f'Bearer {bot_access_token}'},
