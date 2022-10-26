@@ -9,12 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from transformers import (MBartForConditionalGeneration, MBart50TokenizerFast)
 
-BATCH_INFERENCE = True
-
 ctrans_path = "./Ctrans-MBart/ctrans_fp16"
 
 tokenizer = MBart50TokenizerFast.from_pretrained(ctrans_path)
-model = ctranslate2.Translator(ctrans_path, inter_threads=1, device="cuda", device_index=[4])
+model = ctranslate2.Translator(ctrans_path, inter_threads=1, intra_threads=8, device="cuda", device_index=[4,5])
 
 app = FastAPI()
 
@@ -50,7 +48,7 @@ def convert_to_inputs(tokenized_sents, max_length=120):
     return segments
 
 def detokenize(x):
-    return tokenizer.convert_tokens_to_string(x.hypotheses[0][1:])
+    return tokenizer.convert_tokens_to_string(x.hypotheses[0][1:]).replace('<unk>', '')
 
 class Item(BaseModel):
     q: str
@@ -64,20 +62,23 @@ async def translate(item: Item):
     start = time.time()
     tokenizer.src_lang = req["source"]
 
-    if BATCH_INFERENCE:
-        splitted_sents = nltk.sent_tokenize(req['q'])
-        print(f"Splitted len : {len(splitted_sents)}")
-        if len(splitted_sents) ==1 :
-            inputs = [[tokenizer.src_lang] + tokenizer.tokenize(splitted_sents[0]) + [tokenizer.eos_token]]
-        else:
-            inputs = convert_to_inputs(list(map(tokenizer.tokenize, splitted_sents)))
-            print(f"Segments len : {len(inputs)}")
+    splitted_sents = nltk.sent_tokenize(req['q'])
+    print(f"Splitted len : {len(splitted_sents)}")
+    if len(splitted_sents) == 1 :
+        inputs = [[tokenizer.src_lang] + tokenizer.tokenize(splitted_sents[0]) + [tokenizer.eos_token]]
     else:
-        inputs = list(map(convert_to_inputs, [req['q']]))
+        inputs = convert_to_inputs(list(map(tokenizer.tokenize, splitted_sents)))
+        print(f"Segments len : {len(inputs)}")
+        #print('\n'.join(list(map(tokenizer.convert_tokens_to_string, inputs))))
     
-    assert req['q'] == tokenizer.convert_tokens_to_string(list(itertools.chain(*[t[1:-1] for t in inputs])))
+    try:
+        assert req['q'] == tokenizer.convert_tokens_to_string(list(itertools.chain(*[t[1:-1] for t in inputs])))
+    except Exception as ex:
+        print('************')
+        print(tokenizer.convert_tokens_to_string(list(itertools.chain(*[t[1:-1] for t in inputs]))))
+        print('************')
     
-    translated_tokens = model.translate_batch(source=inputs, target_prefix=[[req["target"]]]*len(inputs) ,beam_size=2)
+    translated_tokens = model.translate_batch(source=inputs, target_prefix=[[req["target"]]]*len(inputs) ,beam_size=2, asynchronous=False)
     pred = list(map(detokenize, translated_tokens))
     end = time.time()
     print(f"pred: {pred}\nElaped time : {end-start}")
