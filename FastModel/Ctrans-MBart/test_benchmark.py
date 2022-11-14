@@ -46,9 +46,9 @@ def evaluate(tokenizer, ref, hyp):
 def plotting(exp_name, beam_size, seq_len_list, 
              ctrans_results, torch_results, device):
     #### 1. bar plot으로 나타낼 데이터 입력
-    models = ['Ctrans', 'Pytorch']
+    models = ['KB-NMT', 'Pytorch']
     xticks = seq_len_list
-    data = {'Ctrans':ctrans_results,
+    data = {'KB-NMT':ctrans_results,
             'Pytorch':torch_results}
 
     #### 2. matplotlib의 figure 및 axis 설정
@@ -228,7 +228,7 @@ def speed_test(
     mean_bleu_x = np.mean(np.reshape(bleu_xx, (len(beam_range),len(srcs))), axis=0)
     mean_bleu_y = np.mean(np.reshape(bleu_yy, (len(beam_range),len(srcs))), axis=0)
 
-    plotting('Mean Latency(int16) by seq in beam(2~5)', beam_size=beam_range,seq_len_list=src_seq_len, 
+    plotting('Mean Latency by seq in beam(2~5)', beam_size=beam_range,seq_len_list=src_seq_len, 
              ctrans_results=mean_latency_x, torch_results=mean_latency_y, device=device)
     print(f"Ctrans faster by seq : {np.array(mean_latency_y) / np.array(mean_latency_x)}\n")
           
@@ -242,7 +242,7 @@ def speed_test(
 if __name__ == "__main__":
     device = 'cuda'
     ctrans_index, torch_index = 4,5
-    plm_path = '/opt/project/translation/repo/mbart-nmt/src/ftm/cased_mbart50-finetuned-en_XX-to-ko_KR/ckpt-epoch1'
+    plm_path = '/opt/project/translation/repo/mbart-nmt/src/ftm/cased_mbart50-finetuned-en_XX-to-ko_KR/final_checkpoint'
     ctrans_path = './ctrans_fp16'
     
     converter = ctranslate2.converters.TransformersConverter(plm_path)
