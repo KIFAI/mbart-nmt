@@ -1,10 +1,10 @@
-# fast-MBart
+# fast-MBart(Supports only CPU version)
 
 ### Reduction of MBART model size, and boost in inference speed up
   MBART implementation of the fastT5 library (https://github.com/Ki6an/fastT5)
   
   **Pytorch model -> ONNX model -> Quantized ONNX model**
-
+  
 ---
 ## Install
 
@@ -26,7 +26,7 @@ The `export_and_get_onnx_model()` method exports the given pretrained MBart mode
 from fastMBart import export_and_get_onnx_model
 from transformers import MBartTokenizer
 
-model_name = 'facebook/mbart-large-en-ro'
+model_name = 'cased_mbart50-bidirectional_finetuned_en_XX-ko_KR'
 model = export_and_get_onnx_model(model_name)
 
 tokenizer = MBartTokenizer.from_pretrained(model_name)
@@ -36,7 +36,7 @@ token = tokenizer(input, return_tensors='pt')
 tokens = model.generate(input_ids=token['input_ids'],
                attention_mask=token['attention_mask'],
                num_beams=3,
-	       decoder_start_token_id=tokenizer.lang_code_to_id)
+	       forced_bos_token_id=tokenizer.lang_code_to_id)
 
 output = tokenizer.decode(tokens.squeeze(), skip_special_tokens=True)
 print(output)
@@ -49,9 +49,9 @@ you can customize the whole pipeline as shown in the below code example:
 ```python
 from fastMBart import (OnnxMBart, get_onnx_runtime_sessions,
                     generate_onnx_representation, quantize)
-from transformers import MBartTokenizer
+from transformers import MBart50TokenizerFast
 
-model_or_model_path = 'facebook/mbart-large-en-ro'
+model_or_model_path = 'src/ftm/cased_mbart50-bidirectional_finetuned_en_XX-ko_KR'
 
 # Step 1. convert huggingfaces bart model to onnx
 onnx_model_paths = generate_onnx_representation(model_or_model_path)
@@ -74,7 +74,7 @@ By default, fastMBart creates a `models-mbart` folder in the current directory a
 ```python
 from fastMBart import export_and_get_onnx_model, get_onnx_model
 
-model_name = "facebook/mbart-large-en-ro"
+model_name = "src/ftm/cased_mbart50-bidirectional_finetuned_en_XX-ko_KR"
 custom_output_path = "/path/to/custom/folder/"
 
 # 1. stores models to custom_output_path
