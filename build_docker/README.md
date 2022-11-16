@@ -2,14 +2,21 @@
 This is about building docker container image
 
 ### 1. Copy Model, WebApp, Server and Translate(Inference) Project
+```
 $ ./prepare_project.sh
+```
 
 ### 2. Build docker
 ```
 $ docker build . -t translator:app
 $ ./deploy_translator.sh
 $ docker exec -it translator /bin/bash
-$ ./install_cuda_toolkit.sh
+```
+
+### 3. Build cuda-toolkit
+```
+# You should run install_cuda_toolkit shell script from using "source" command
+$ source install_cuda_toolkit.sh 
 #Type into "accept"
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │  End User License Agreement                                                  │
@@ -75,7 +82,6 @@ nvcc: NVIDIA (R) Cuda compiler driver Copyright (c) 2005-2020 NVIDIA Corporation
 ```
 ### 3. Check nvcc
 ```
-$ source ~/.bashrc #One more time
 $ nvcc --version
 ```
 
