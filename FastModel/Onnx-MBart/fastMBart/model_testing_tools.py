@@ -1,6 +1,6 @@
 from time import perf_counter as pc
 from matplotlib import pyplot as plt
-from transformers import MBartTokenizer
+from transformers import MBart50TokenizerFast
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import numpy as np
 
@@ -40,7 +40,7 @@ def speed_test(
         else:
             srcs , refs = testset
 
-    tokenizer = MBartTokenizer.from_pretrained(torch_model.name_or_path)
+    tokenizer = MBart50TokenizerFast.from_pretrained(torch_model.name_or_path)
 
     xx = []
     yy = []
@@ -57,26 +57,26 @@ def speed_test(
             token = tokenizer(
                 src,
                 return_tensors="pt",
-                ).to("cuda")
+                ).to("cpu")
 
             input_ids = token["input_ids"]
             attention_mask = token["attention_mask"]
 
             a = pc()
-            out = onnx_model.generate(
+            o_out = onnx_model.generate(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
-                decoder_start_token_id=tokenizer.lang_code_to_id["ko_KR"],
+                forced_bos_token_id=tokenizer.lang_code_to_id["ko_KR"],
                 num_beams=j,
             )
             b = pc()
             x.append(b - a)
 
             c = pc()
-            o = torch_model.generate(
+            t_out = torch_model.generate(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
-                decoder_start_token_id=tokenizer.lang_code_to_id["ko_KR"],
+                forced_bos_token_id=tokenizer.lang_code_to_id["ko_KR"],
                 num_beams=j,
             )
             d = pc()
@@ -84,16 +84,18 @@ def speed_test(
 
             print(f"seqL : {len(src)}, onnx-{b-a}, pt-{d-c} .. ONNX faster {(d-c)/(b-a)}")
 
-            onnx_score = evaluate(tokenizer, ref, tokenizer.decode(out.squeeze(), skip_special_tokens=True))
+            onnx_score = evaluate(tokenizer, ref, tokenizer.decode(o_out.squeeze(), skip_special_tokens=True))
+            print(f"onnx hyp : {tokenizer.decode(o_out.squeeze(), skip_special_tokens=True)}")
             bleu_x.append(onnx_score)
-            torch_score = evaluate(tokenizer, ref, tokenizer.decode(o.squeeze(), skip_special_tokens=True))
+            torch_score = evaluate(tokenizer, ref, tokenizer.decode(t_out.squeeze(), skip_special_tokens=True))
+            print(f"torch hyp : {tokenizer.decode(t_out.squeeze(), skip_special_tokens=True)}")
             bleu_y.append(torch_score)
             print(f"Bleu : onnx-{onnx_score}, pt-{torch_score} .. ONNX higher {onnx_score - torch_score}\n")
 
-            if (o.shape[1] == prev[-1]) and (o.shape[1] == prev[-2]):
+            if (t_out.shape[1] == prev[-1]) and (t_out.shape[1] == prev[-2]):
                 pass
 
-            prev.append(o.shape[1])
+            prev.append(t_out.shape[1])
         
         mean_x, mean_y = np.mean(x), np.mean(y)
         mean_ratio = mean_y / mean_x
