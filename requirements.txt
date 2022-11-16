@@ -53,5 +53,8 @@ wget==3.2
 xxhash==3.0.0
 yarl==1.7.2
 zipp==3.8.0
+ctranslate2==2.20.0
 protobuf==3.20.0
 bashplotlib==0.6.5
+uvicorn==0.18.2
+fastapi==0.79.0
