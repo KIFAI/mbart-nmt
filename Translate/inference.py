@@ -42,7 +42,6 @@ class Translator():
                 start_ix = i+1
             else:
                 pass
-        print(f"\nLen of input sents from reassembling : {len(segments)}")
         return segments
 
     def convert_to_inputs(self, src_sent):
