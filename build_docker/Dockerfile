@@ -3,7 +3,7 @@ FROM python:3.8-slim-buster 
 
 #Set directory for translator
 ENV PROJECT_ROOT=/opt/project
-ENV APP_ROOT=/opt/project/Translator
+ENV APP_ROOT=/opt/project/WebApp/Translator
 
 #Set the working directory to /app
 WORKDIR ${PROJECT_ROOT}
