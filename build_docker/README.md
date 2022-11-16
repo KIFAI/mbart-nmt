@@ -1,19 +1,10 @@
 <h1 align="center"><b> Translator Web-App </b></h1>
 This is about building docker container image
 
-### 1. Convert MBart(Pytorch format) to Ctranslate2 model
-```
-$ . myenv/bin/activate
-$ (myenv) cd Ctranslate-MBart
-$ (myenv) python test_benchmark.py
-$ (myenv) cp -r ctrans_fp16 ../build_docker/project
-```
+### 1. Copy Model, WebApp, Server and Translate(Inference) Project
+$ ./prepare_project.sh
 
-### 2. Copy Translator(Front) Project
-$ cd ..
-$ cp -r Translator build_docker/project
-
-### 3. Build docker
+### 2. Build docker
 ```
 $ docker build . -t translator:app
 $ ./deploy_translator.sh
@@ -81,7 +72,9 @@ To install the driver using this installer, run the following command, replacing
 
 Logfile is /var/log/cuda-installer.log
 nvcc: NVIDIA (R) Cuda compiler driver Copyright (c) 2005-2020 NVIDIA Corporation Built on Mon_Nov_30_19:08:53_PST_2020 Cuda compilation tools, release 11.2, V11.2.67 Build cuda_11.2.r11.2/compiler.29373293_0
-
+```
+### 3. Check nvcc
+```
 $ source ~/.bashrc #One more time
 $ nvcc --version
 ```
