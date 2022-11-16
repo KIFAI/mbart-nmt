@@ -14,7 +14,7 @@ from onnxruntime import (
 )
 
 set_seed(1)
-assert 'CUDAExecutionProvider' in get_available_providers()
+assert 'CPUExecutionProvider' in get_available_providers()
 print(f"Possible inference session : {get_available_providers()}")
 
 def get_onnx_runtime_sessions(
@@ -24,8 +24,7 @@ def get_onnx_runtime_sessions(
     parallel_exe_mode: bool = True,
     n_threads: int = 0,
     provider=[
-        "CPUExecutionProvider",
-        "CUDAExecutionProvider"
+        "CPUExecutionProvider" #This version supports only CPU version
     ],
 ) -> InferenceSession:
     """
