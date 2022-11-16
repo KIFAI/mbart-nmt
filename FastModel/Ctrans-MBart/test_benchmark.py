@@ -242,7 +242,7 @@ def speed_test(
 if __name__ == "__main__":
     device = 'cuda'
     ctrans_index, torch_index = 4,5
-    plm_path = '/opt/project/translation/repo/mbart-nmt/src/ftm/cased_mbart50-finetuned-en_XX-to-ko_KR/final_checkpoint'
+    plm_path = '/opt/project/translation/repo/mbart-nmt/src/ftm/cased_mbart50-bidirectional_finetuned_en_XX-ko_KR/final_checkpoint'
     ctrans_path = './ctrans_fp16'
     
     converter = ctranslate2.converters.TransformersConverter(plm_path)
