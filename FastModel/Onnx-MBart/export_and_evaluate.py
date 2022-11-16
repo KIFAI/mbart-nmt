@@ -3,11 +3,14 @@ from pathlib import Path
 from fastMBart import (OnnxMBart, get_onnx_runtime_sessions,
                     generate_onnx_representation, quantize, speed_test)
 from fastMBart.onnx_exporter import get_model_paths
-from transformers import MBartTokenizer, MBartForConditionalGeneration
+from transformers import MBartForConditionalGeneration
 
 def define_argparser():
+    repo_path = os.path.dirname(os.path.dirname(os.path.abspath('./')))
+    model_path = os.path.join(repo_path, 'src/ftm/cased_mbart50-finetuned-en_XX-to-ko_KR/final_checkpoint')
+
     p = argparse.ArgumentParser()
-    p.add_argument('--plm_path', type=str, default='/opt/project/translation/repo/mbart-nmt/src/ftm/aihub_lower_mbart-finetuned-en_XX-to-ko_KR/checkpoint-60000')
+    p.add_argument('--plm_path', type=str, default=f'{model_path}')
     p.add_argument('--onnx_path', type=str, default='models-mbart')
     p.add_argument('--export', default=False, action='store_true')
     
