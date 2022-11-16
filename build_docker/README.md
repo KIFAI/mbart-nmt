@@ -80,8 +80,13 @@ To install the driver using this installer, run the following command, replacing
 Logfile is /var/log/cuda-installer.log
 nvcc: NVIDIA (R) Cuda compiler driver Copyright (c) 2005-2020 NVIDIA Corporation Built on Mon_Nov_30_19:08:53_PST_2020 Cuda compilation tools, release 11.2, V11.2.67 Build cuda_11.2.r11.2/compiler.29373293_0
 ```
-### 3. Check nvcc
+### 4. Check nvcc
 ```
 $ nvcc --version
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2020 NVIDIA Corporation
+Built on Mon_Nov_30_19:08:53_PST_2020
+Cuda compilation tools, release 11.2, V11.2.67
+Build cuda_11.2.r11.2/compiler.29373293_0
 ```
 
