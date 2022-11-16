@@ -56,9 +56,10 @@ def evaluate(tokenizer, preds, refs):
         bleu_total.append(score_total)
     return {'bleu_unigram' : np.mean(bleu_unigram), 'bleu_ngram' : np.mean(bleu_ngram), 'bleu_total' : np.mean(bleu_total)}
 
-def save_trans_hyps(save_path, sents_list):
+def save_trans_hyps(save_path, bleu_score, sents_list):
+    contents = "*** Bleu Score ***\n{} *** \nHypotheses ***\n{}".format(bleu_score, '\n'.join(sents_list))
     with open(save_path, 'w') as f:
-        f.write('\n'.join(sents_list))
+        f.write(contents)
     
 
 def main(model_paths, data=None, src_lang='ko_KR', tgt_lang='en_XX', 
@@ -81,12 +82,12 @@ def main(model_paths, data=None, src_lang='ko_KR', tgt_lang='en_XX',
     assert isinstance(model_paths, list) == True
     for path in model_paths:
         if os.path.exists(path):
-            print(f"Version : {path.split('final_checkpoint_')[-1]}")
+            print(f"Version : {path.split('/')[-1]}")
             print('trans_type', trans_type)
             model, tokenizer = load_model(path, device)
             result = generate(model, tokenizer, src_sents, src_lang, tgt_lang, batch_size=16, device=device)
-            save_trans_hyps(f"./src/hypothesis/{path.split('final_checkpoint_')[-1]}_from_{src_lang}_to_{tgt_lang}_{trans_type}", result)
             bleus = evaluate(tokenizer, preds=result, refs=tgt_sents)
+            save_trans_hyps(f"./src/hypothesis/{path.split('/')[-1]}_from_{src_lang}_to_{tgt_lang}_{trans_type}", bleus, result)
 
             pprint.pprint(bleus)
 
@@ -97,13 +98,14 @@ data = load_data()
 model_paths = ['./src/ftm/cased_mbart50_v3-finetuned-en_XX-to-ko_KR/final_checkpoint_sent_unit',
         './src/ftm/cased_mbart50_v3-finetuned-en_XX-to-ko_KR/final_checkpoint_seg_unit',
         './src/ftm/cased_mbart50_v3-finetuned-en_XX-to-ko_KR/final_checkpoint_hybrid',
-        './src/ftm/cased_mbart50_v3-finetuned-en_XX-to-ko_KR/final_checkpoint_multiple_batch']
+        './src/ftm/cased_mbart50_v3-finetuned-en_XX-to-ko_KR/final_checkpoint_multiple_batch',
+        './src/ftm/cased_mbart50-finetuned-en_XX-to-ko_KR/checkpoint-408500']
 
 trans_directions = [[False, False], [True, False], [False, True], [True, True]]
 #trans_directions = [[False, False], [True, False]]
 
 for r, d in trans_directions:
     main(model_paths, data=data, src_lang='ko_KR', tgt_lang='en_XX', 
-            reverse=r, doc_nmt=d, device='cuda:3')
+            reverse=r, doc_nmt=d, device='cuda:5')
     print('*****************************************')
 
