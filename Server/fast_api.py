@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from Translate.inference import Translator
 
-par_dir = os.path.dirname(os.path.abspath(os.path.dirname('utils.py')))
+par_dir = os.path.dirname(os.path.abspath('./'))
 model_path = os.path.join(par_dir, 'FastModel/Ctrans-MBart/ctrans_fp16')
 translator = Translator(model_path=model_path, model_type='Ctranslate2', device='cuda', device_index=[2,3],
                         max_length=200, batch_size=8)
