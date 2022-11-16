@@ -19,7 +19,7 @@ translator = Translator(model_path=model_path, model_type='Ctranslate2', device=
 app = FastAPI()
 
 origins = [
-        "http://10.17.23.228:11757"
+        "http://10.17.23.228:14001"
         ]
 
 app.add_middleware(
