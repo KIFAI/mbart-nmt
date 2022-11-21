@@ -9,7 +9,7 @@
 ## Speend And Performance Test with pytorch model
 
 ```shell
-$ (mbart_env) python test_benchmark.py
+$ (mbart_env) python test_benchmark.py --model_path ${MODEL_PATH} --ctrans_index ${CTRANS_INDEX} --torch_index ${TORCH_INDEX}
 ```
 
 ## Functionalities
