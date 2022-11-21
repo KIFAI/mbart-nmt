@@ -1,14 +1,14 @@
 <h1 align="center"><b>Part #1. Mbart NMT Engine </b></h1>
-This project is about building a NMT ENGINE using MBART25 or MBART50(EN <-> KO).
+This project is about building a NMT ENGINE using MBART50(EN <-> KO).
 
 ## 🚀 Features
 - Possible to use custom sentencepiece model & vocab
-- Reduce token embedding matched custom spc vocab and convert fairseq type's model to huggingface type
+- Reduce token embedding size matched custom spc vocab and convert huggingface type model(mbart-m2m)
 - Good working on small domain data(<1M) and different language family
-- Futher performance benifit using back stranslation augmentation
+- Futher performance benifit using data augmentation(integrate sentences into segments unit by similar domain)
 - Transformer architecture(bidirectional encoder and autoregressive decoder)
-- Bidirectional translation engine
-- Possibile fast model from using Ctrans or Onnx
+- Bidirectional translation engine(EN <> KO)
+- Possibile using fast model convertor from using Ctrans2(CPU & GPU) or Onnx(only CPU ver)
 
 ### 1. Dependency
 ```
@@ -101,7 +101,7 @@ Using HTTPS
 + Open terminal on your workspace with
 
 ```
-cd /home/workspace/mbart-nmt/Translator
+cd /pwd/WebApp/Translator
 ```
 
 
@@ -150,4 +150,37 @@ To run the application, run the following command:
 
 ```
 npm run dev -- --port ${PORT_NUM} --host=${HOST}
+```
+
+<h1 align="center"><b>Part #3. Translator Bot</b></h1>
+
+<h2 align="center">Chat application to translate languages interacively</h2>    
+
+<br />
+
+<img width="1279" alt="image" src="https://user-images.githubusercontent.com/60684500/202968404-9a4f2412-c2ea-4c00-a7ef-5e3bab9913bd.png">
+
+<br/>
+
+
+## 🚀 Features
+- Translate automatically english to korean or korean to english
+- Write translation history in enko or koen channel if you type '저장하기' 
+- Use mattermost App
+
+### Prerequisites
+
+- docker
+```
+$ docker pull mattermost/mattermost-preview
+$ docker run -it -d --name mattermost-preview -p 8065:8065 mattermost-transbot
+```
+
+### Setup
+
+
+This project should be preceded by the 'build_docker README.md' guide procedure
+
+```
+$ cd /pwd/build_docker
 ```
