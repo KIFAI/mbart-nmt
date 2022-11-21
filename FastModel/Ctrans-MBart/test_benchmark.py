@@ -1,10 +1,37 @@
-import ctranslate2
 import os, time
+import ctranslate2
+import argparse
 import numpy as np
+import evaluate
 from time import perf_counter as pc
 from matplotlib import pyplot as plt
 from transformers import MBartTokenizer, MBart50TokenizerFast, MBartForConditionalGeneration
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+
+def define_argparser():
+    parser = argparse.ArgumentParser()
+    main_dir = os.path.dirname(os.path.dirname(os.path.abspath('./')))
+    model_dir = "src/ftm/cased_mbart50-bidirectional_finetuned_en_XX-ko_KR/final_checkpoint"
+    
+    parser.add_argument(
+        "--model_path",
+        default=f"{os.path.join(main_dir, model_dir)}",
+        type=str,
+    )
+    parser.add_argument(
+        "--ctrans_index",
+        default=0,
+        type=int
+    )
+    parser.add_argument(
+        "--torch_index",
+        default=1,
+        type=int
+    )
+
+    args = parser.parse_args()
+
+    return args
 
 def validate_vocab(ctrans_path):
     with open(f"{ctrans_path}/shared_vocabulary.txt", "r") as f:
@@ -36,19 +63,19 @@ def validate_vocab(ctrans_path):
     with open(f"{ctrans_path}/shared_vocabulary.txt", "w") as f:
         f.write("\n".join(vocab))
 
-def evaluate(tokenizer, ref, hyp):
+def evaluate_sacrebleu(hyp, ref, tgt_lang):
     #Evaluation
-    tokenized_ref = tokenizer.tokenize(ref)
-    tokenized_hyp = tokenizer.tokenize(hyp)
-    score = sentence_bleu([tokenized_ref], tokenized_hyp, weights=(0.25,0.25,0.25,0.25), smoothing_function=SmoothingFunction().method4)
-    return score
+    metric = evaluate.load("sacrebleu")
+    tokenizer = None if tgt_lang == 'en_XX' else 'ko-mecab'
+    results = metric.compute(predictions=[hyp], references=[[ref]], tokenize=tokenizer)
+    return results
 
 def plotting(exp_name, beam_size, seq_len_list, 
              ctrans_results, torch_results, device):
     #### 1. bar plot으로 나타낼 데이터 입력
-    models = ['KB-NMT', 'Pytorch']
+    models = ['Ctrans2', 'Pytorch']
     xticks = seq_len_list
-    data = {'KB-NMT':ctrans_results,
+    data = {'Ctrans2':ctrans_results,
             'Pytorch':torch_results}
 
     #### 2. matplotlib의 figure 및 axis 설정
@@ -168,7 +195,7 @@ def speed_test(
             
             warmup = [ctrans_model.translate_batch(source=[source],target_prefix=[['ko_KR']],beam_size=j) for i in warmup_range]
             a = pc()
-            out = [ctrans_model.translate_batch(source=[source],target_prefix=[['ko_KR']],beam_size=j)
+            ctrans_out = [ctrans_model.translate_batch(source=[source],target_prefix=[['ko_KR']],beam_size=j)
                    for i in inference_range][0]
             b = pc()
             ctrans_latency = (b - a)/len(inference_range)
@@ -182,9 +209,9 @@ def speed_test(
                 forced_bos_token_id=tokenizer.lang_code_to_id["ko_KR"],num_beams=j)
                  for i in warmup_range]
             c = pc()
-            o = [torch_model.generate(input_ids=input_ids,attention_mask=attention_mask,
-                forced_bos_token_id=tokenizer.lang_code_to_id["ko_KR"],num_beams=j)
-                 for i in inference_range][0]
+            torch_out = [torch_model.generate(input_ids=input_ids,attention_mask=attention_mask, 
+                forced_bos_token_id=tokenizer.lang_code_to_id["ko_KR"],num_beams=j) 
+                for i in inference_range][0]
             d = pc()
             pytorch_latency = (d - c)/len(inference_range)
             latency_y.append(pytorch_latency)
@@ -192,13 +219,13 @@ def speed_test(
             print(f"seqL : {len(source)}, Ctrans-{ctrans_latency}, pt_fp16-{pytorch_latency}")
             print(f"Ctrans faster {pytorch_latency/ctrans_latency} than Pytorch_fp16")
             
-            ctrans_score = evaluate(tokenizer, ref, tokenizer.decode(tokenizer.convert_tokens_to_ids(out[0].hypotheses[0]), skip_special_tokens=True))
+            ctrans_score = round(evaluate_sacrebleu(tokenizer.decode(tokenizer.convert_tokens_to_ids(ctrans_out[0].hypotheses[0]), skip_special_tokens=True), ref, tgt_lang="ko_KR")["score"],5)
             bleu_x.append(ctrans_score)
-            torch_score = evaluate(tokenizer, ref, tokenizer.decode(o.squeeze(), skip_special_tokens=True))
+            torch_score = round(evaluate_sacrebleu(tokenizer.decode(torch_out.squeeze(), skip_special_tokens=True), ref, tgt_lang="ko_KR")["score"],5)
             bleu_y.append(torch_score)
             print(f"ref out : {ref}")
-            print(f"ctran out : {tokenizer.decode(tokenizer.convert_tokens_to_ids(out[0].hypotheses[0]), skip_special_tokens=True)}")
-            print(f"torch out : {tokenizer.decode(o.squeeze(), skip_special_tokens=True)}")
+            print(f"ctran out : {tokenizer.decode(tokenizer.convert_tokens_to_ids(ctrans_out[0].hypotheses[0]), skip_special_tokens=True)}")
+            print(f"torch out : {tokenizer.decode(torch_out.squeeze(), skip_special_tokens=True)}")
             #print(f"Bleu : Ctrans_int16-{bleu_score_v1}, Ctrans_fp16-{bleu_score_v2}, pt-{torch_score}")
             #print(f"Ctrans_fp16 higher {bleu_score_v2 - torch_score} than Pytorch_fp16")
             #print(f"Ctrans_int16 higher {bleu_score_v1 - torch_score} than Pytorch_fp16\n")
@@ -240,24 +267,22 @@ def speed_test(
     return np.array(latency_xx), np.array(latency_yy), np.array(bleu_xx), np.array(bleu_yy)
 
 if __name__ == "__main__":
-    device = 'cuda'
-    ctrans_index, torch_index = 4,5
-    plm_path = '/opt/project/translation/repo/mbart-nmt/src/ftm/cased_mbart50-bidirectional_finetuned_en_XX-ko_KR/final_checkpoint'
+    args = define_argparser()
+    print(f"PLM path : {args.model_path}")
+
     ctrans_path = './ctrans_fp16'
     
-    converter = ctranslate2.converters.TransformersConverter(plm_path)
+    converter = ctranslate2.converters.TransformersConverter(args.model_path)
     converter.convert(ctrans_path, force=True, quantization='float16')
     validate_vocab(ctrans_path)
 
-    tokenizer = MBart50TokenizerFast.from_pretrained(plm_path)
+    tokenizer = MBart50TokenizerFast.from_pretrained(args.model_path)
     tokenizer.save_pretrained(ctrans_path)
     tokenizer.src_lang = "en_XX"
 
-    ctrans_model = ctranslate2.Translator(ctrans_path, inter_threads=1, 
-            device=f"{device}" if device == "cuda" else "cpu",
-            device_index=[0] if device=="cpu" else [ctrans_index])
-    pytorch_model = MBartForConditionalGeneration.from_pretrained(plm_path, use_cache=True).to(f"{device}:{torch_index}")
+    ctrans_model = ctranslate2.Translator(ctrans_path, inter_threads=1, device="cuda", device_index=[args.ctrans_index])
+    pytorch_model = MBartForConditionalGeneration.from_pretrained(args.model_path, use_cache=True).to(f"cuda:{args.torch_index}")
 
     speed_test(ctrans_model=ctrans_model, torch_model=pytorch_model, tokenizer=tokenizer,
-            warmup_range = range(0, 10, 1), inference_range = range(0, 10, 1), device=f"{device}:{torch_index}")
+            warmup_range = range(0, 10, 1), inference_range = range(0, 10, 1), device=f"cuda:{args.torch_index}")
 
