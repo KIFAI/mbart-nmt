@@ -173,13 +173,15 @@ npm run dev -- --port ${PORT_NUM} --host=${HOST}
 - docker
 ```
 $ docker pull mattermost/mattermost-preview
-$ docker run -it -d --name mattermost-preview -p 8065:8065 mattermost-transbot
+$ docker run -it -d --name mattermost-preview -p 8065:8065 mattermost/mattermost-preview:latest
 ```
 
 ### Setup
 
 
-This project should be preceded by the 'build_docker README.md' guide procedure
+This project should be preceded by the 'build_docker README.md' guide procedure. 
+
+And you need to edit "url info and trans bot token" in mm_transbot.py
 
 ```
 $ cd /pwd/build_docker
