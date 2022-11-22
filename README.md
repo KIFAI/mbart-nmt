@@ -186,3 +186,11 @@ And you need to edit "url info and trans bot token" in mm_transbot.py
 ```
 $ cd /pwd/build_docker
 ```
+
+### Run TransBot
+If you complete setting docker container, type below command
+
+```
+$ python mm_transbot.py --url ${URL} --mm_port ${MM_PORT} --trans_port ${TRANS_PORT} \
+            --bot_access_token ${BOT_ACCESS_TOKEN} --login_id ${LOGIN_ID} --password ${PASSWORD}
+```
