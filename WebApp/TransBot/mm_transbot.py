@@ -3,7 +3,6 @@ import json
 import requests
 from mattermostdriver import Driver
 
-
 def define_argparser():
     parser = argparse.ArgumentParser()
 
@@ -37,7 +36,6 @@ def define_argparser():
             default="kbbank123",
             type=str
             )
-
 
     args = parser.parse_args()
 
