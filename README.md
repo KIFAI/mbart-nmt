@@ -8,21 +8,21 @@ Finetuning(mBart50)**
     - [https://arxiv.org/pdf/2008.00401.pdf](https://arxiv.org/pdf/2008.00401.pdf)
     
 ## 🚀 Features
-- Possible to use custom sentencepiece model & vocab
+- **Possible to use custom sentencepiece model & vocab**
     - you can train own sentencepiece model & vocab or use pretrained sentencepiece model & vocab
-- Reduce token embedding size to fit custom spc vocab and convert it huggingface type model(mbart-m2m)
+- **Reduce token embedding size to fit custom spc vocab and convert it huggingface type model(mbart-m2m)**
     - We used offical “facebook/mbart-large-50-many-to-many-mmt”(multilingual mBart fintuned model), which can be downloaded from Huggingface. And we customized its token embedding&lm head since we don’t need another languges except for korean & english. In addition, we were confident in the composition of the vocab in Korean that could produce good performance. so we tried to use the self-made sentence model and vocab as much as possible.
     - In fact, the vocab of the official mBart50-m2m model, which is about 250,000 in size, influenced the inference latency and memory issues during training, and we conducted the training with only the necessary "Korean and English." In the case of Token, which was not in the vocab of the Hugging Face model, it was updated while finetuning and had little impact on performance degradation.
-- Good working on small domain data(<1M) and different language family
-    - **When comparing the performance of the same parallel sentence set of “en > ko and ko to en”, the performance difference tends to be very large, but as a bidirectional model, we significantly reduced the performance difference compared to other translators (Google/Papago/T5, etc.)**
-- Futher performance benifit using data augmentation(integrate sentences into segments unit by similar domain)
+- **Good working on small domain data(<1M) and different language family**
+    - When comparing the performance of the same parallel sentence set of “en > ko and ko to en”, the performance difference tends to be very large, but as a bidirectional model, we significantly reduced the performance difference compared to other translators (Google/Papago/T5, etc.)
+- **Futher performance benifit using data augmentation(integrate sentences into segments unit by similar domain)**
     - We've collected about 10 million pairs of parallel corporations and doubled them by merging in random order(random permutation) to form a phrase
-- Transformer architecture(bidirectional encoder and autoregressive decoder)
+- **Transformer architecture(bidirectional encoder and autoregressive decoder)**
     - When you use Transformer(Encoder & Decoder), which called standard seq2seq arhictecture, it can be speed up by using ctranslate2
     - Although NAT(Non-Autoregressive Transformer) research is actively underway in the field of machine translation, it is still known that the Autoregressive transformer model has strong performance in the Generation and Translation Task yet.
-- Bidirectional translation engine(EN <> KO)
+- **Bidirectional translation engine(EN <> KO)**
     - When learning a model, it takes twice as long because the directions of the original and target language sentences are switched to each other, but in the model deployment environment, it uses less computing resources and enables two-way translation
-- Possibile using fast model convertor from using Ctrans2(CPU & GPU) or Onnx(only CPU ver)
+- **Possibile using fast model convertor from using Ctrans2(CPU & GPU) or Onnx(only CPU ver)**
 
 ### 1. Dependency
 ```
