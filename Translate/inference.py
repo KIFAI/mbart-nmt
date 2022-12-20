@@ -49,8 +49,20 @@ class Translator():
         Create Ctranslate input format according to the number of sent element
         '''
         splitted_sents = nltk.sent_tokenize(src_sent)
+        print(f"\nSplitted Length of input : {len(splitted_sents)}")
         if len(splitted_sents) == 1:
-            return [[self.tokenizer.src_lang] + self.tokenizer.tokenize(splitted_sents[0]) + [self.tokenizer.eos_token]]
+            print(f"Do simply segmentation by max decoding length")
+
+            def devide_inputs(l, n):
+                for i in range(0, len(l), n):
+                    yield [self.tokenizer.src_lang] + l[i:i+n] + [self.tokenizer.eos_token]
+
+            tokenized_sent = self.tokenizer.tokenize(src_sent)
+            segments = list(devide_inputs(tokenized_sent, self.max_length))
+
+            print(f"Divided input's length : {len(segments)}")
+            print(f"segments : {segments}")
+            return segments
         else:
             return self.do_reassemble(list(map(self.tokenizer.tokenize, splitted_sents)))
 
@@ -76,7 +88,7 @@ class Translator():
 
         for i, src_sent in enumerate(sentence_batch):
             inputs = list(map(self.convert_to_inputs, src_sent))
-            translated_tokens = map(lambda source : self.model.translate_batch(source=source, target_prefix=[[tgt_lang]]*len(source) ,beam_size=2, asynchronous=False), inputs)
+            translated_tokens = map(lambda source : self.model.translate_batch(source=source, target_prefix=[[tgt_lang]]*len(source) ,beam_size=2, max_decoding_length=self.max_length, asynchronous=False), inputs)
             pred = list(map(self.detokenize, translated_tokens))
             results.append(pred)
 
