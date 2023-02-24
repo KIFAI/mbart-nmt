@@ -6,8 +6,31 @@ from transformers import MBartForConditionalGeneration, MBart50TokenizerFast
 class Translator():
     '''
     Allow detokenizing sequences in batchs
+
+    **Performance tips**
+    Below are some general recommendations to further improve performance. Many of these recommendations were used in the WNGT 2020 efficiency task submission.
+
+    Set the compute type to "auto" to automatically select the fastest execution path on the current system
+    Reduce the beam size to the minimum value that meets your quality requirement
+    When using a beam size of 1, keep return_scores disabled if you are not using prediction scores: the final softmax layer can be skipped
+    Set max_batch_size and pass a larger batch to *_batch methods: the input sentences will be sorted by length and split by chunk of max_batch_size elements for improved efficiency
+    Prefer the "tokens" batch_type to make the total number of elements in a batch more constant
+    Consider using {ref}translation:dynamic vocabulary reduction for translation
+    
+    <On CPU>
+
+    Use an Intel CPU supporting AVX512
+    If you are processing a large volume of data, prefer increasing inter_threads over intra_threads and use stream methods (methods whose name ends with _file or _iterable)
+    Avoid the total number of threads inter_threads * intra_threads to be larger than the number of physical cores
+    For single core execution on Intel CPUs, consider enabling packed GEMM (set the environment variable CT2_USE_EXPERIMENTAL_PACKED_GEMM=1)
+    
+    <On GPU>
+
+    Use a larger batch size
+    Use a NVIDIA GPU with Tensor Cores (Compute Capability >= 7.0)
+    Pass multiple GPU IDs to device_index to execute on multiple GPUs
     '''
-    def __init__(self, model_path=None, model_type='Ctranslate2', device='cuda', device_index=[0],
+    def __init__(self, model_path=None, model_type='Ctranslate2', device='cuda', device_index=[0], inter_threads=8, intra_threads=1,
             max_length=200, batch_size=8):
         assert model_type in ['Ctranslate2', 'Pytorch']
 
@@ -18,8 +41,7 @@ class Translator():
                 else:
                     self.model = ctranslate2.Translator(model_path, inter_threads=1, intra_threads=8, device=device, device_index=device_index)
             elif device == 'cpu':
-                device_index=None
-                self.model = ctranslate2.Translator(mode_path, inter_threads=8, intra_threads=1, device=device, device_index=device_index)
+                self.model = ctranslate2.Translator(model_path, inter_threads=inter_threads, intra_threads=intra_threads, device=device, device_index=0)
 
         self.tokenizer = MBart50TokenizerFast.from_pretrained(model_path)
         self.max_length = max_length
