@@ -94,7 +94,7 @@ class Translator():
         '''
         return ' '.join(list(map(lambda x : self.tokenizer.convert_tokens_to_string(x.hypotheses[0][1:]).replace('<unk>', ''), translated_tokens)))
 
-    def generate(self, src_sents, src_lang, tgt_lang):
+    def generate(self, src_sents, src_lang, tgt_lang, return_scores=True):
         '''
         Main function of batch generation
         '''
@@ -110,7 +110,7 @@ class Translator():
 
         for i, src_sent in enumerate(sentence_batch):
             inputs = list(map(self.convert_to_inputs, src_sent))
-            translated_tokens = map(lambda source : self.model.translate_batch(source=source, target_prefix=[[tgt_lang]]*len(source) ,beam_size=2, max_decoding_length=self.max_length, asynchronous=False), inputs)
+            translated_tokens = map(lambda source : self.model.translate_batch(source=source, target_prefix=[[tgt_lang]]*len(source) ,beam_size=2, max_decoding_length=self.max_length, asynchronous=False, return_scores=return_scores), inputs)
             pred = list(map(self.detokenize, translated_tokens))
             results.append(pred)
 
