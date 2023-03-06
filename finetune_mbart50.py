@@ -154,7 +154,7 @@ def main(args):
         mbart_plm,
         train_args,
         train_dataset=tokenized_datasets["train"],
-        eval_dataset=tokenized_datasets["validation"],
+        eval_dataset=tokenized_datasets["valid"],
         data_collator=data_collator,
         tokenizer=mbart_tokenizer,
         # callbacks = [EarlyStoppingCallback(early_stopping_patience=5)]

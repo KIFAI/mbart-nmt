@@ -20,7 +20,7 @@ class NmtDataLoader:
         valid_corpus_path = glob.glob(os.path.join(corpus_path, "valid_*.tsv"))[0]
         self.train_dataset = self.get_parallel_dataset(train_corpus_path, packing, packing_size, hybrid, group_key)
         self.eval_dataset = self.get_parallel_dataset(valid_corpus_path, packing, packing_size, hybrid, group_key)
-        self.raw_datasets = datasets.DatasetDict({"train": self.train_dataset, "validation": self.eval_dataset})
+        self.raw_datasets = datasets.DatasetDict({"train": self.train_dataset, "valid": self.eval_dataset})
 
     def get_parallel_dataset(self, corpus_path, packing, packing_size, hybrid, group_key, header=["domain", "subdomain", "ko_KR", "en_XX"]):
         """
@@ -33,29 +33,19 @@ class NmtDataLoader:
         # with open(f"{src_path}.{self.src_lang}", "r") as src, open(f"{tgt_path}.{self.tgt_lang}", "r") as tgt:
         #     src_data = src.readlines()
         #     tgt_data = tgt.readlines()
-        """
-        corpus = read_file(corpus_path, "\t", -1)
-        # 데이터에 hearder가 없으므로 컬럼 인덱스로 데이터를 찾아야해서 properties에 추가함
-        corpus_dict = {col_name: index2data(corpus, i) for i, col_name in enumerate(header)}
-        corpus = pd.DataFrame(corpus_dict)
 
-        src_data = corpus[self.src_lang].to_list()
-        tgt_data = corpus[self.tgt_lang].to_list()
-        """
         corpus = pd.read_csv(corpus_path, sep="\t")
         print(corpus.head())
         src_data, tgt_data = corpus[self.src_lang], corpus[self.tgt_lang]
 
         if packing and (packing_size is not None):
             print("Merge sentences into Segments...")
-            # packing_data(tokenizer, df, group_key, src_key, tgt_key, batch_size=256, max_token_length=256, merge_direction="bidirection")
             packed_src, packed_tgt, packed_len, time_num = packing_data(
                 self.tokenizer, corpus, group_key, self.src_lang, self.tgt_lang, packing_size, self.max_token_length, merge_direction="bidirection"
             )
-            # packed_src, packed_tgt, packed_len = packing_data(
-            #     self.tokenizer, src_data, tgt_data, packing_size, self.max_token_length, merge_direction="bidirection"
-            # )
+            
             if hybrid:
+                print("Prepare train data using sents & segments unit")
                 time_num_ceil = math.ceil(time_num)
                 packed_src_data, packed_tgt_data = [], []
                 for i in range(time_num_ceil):
@@ -91,31 +81,12 @@ class NmtDataLoader:
                     print(src_data[i])
                     print(tgt_data[i])
 
-                print("Prepare train data using sents & segments unit")
-                # src_data = [s.strip() for s in src_data] + [" ".join(sents) for sents in packed_src] * 6
-                # tgt_data = [s.strip() for s in tgt_data] + [" ".join(sents) for sents in packed_tgt] * 6
-                """
-                seen, seen_src, seen_tgt = set(), {}, {}
-                dupes_ix = []
-                uniq_src, uniq_tgt = [], []
-
-                for i, sent in tqdm(enumerate(zip(src_data, tgt_data)), total=len(src_data)):
-                    if sent[1] in seen:
-                        pass
-                    else:
-                        seen.add(sent[1])
-                        seen_src[i], seen_tgt[i] = sent[0], sent[1]
-
-                src_data, tgt_data = list(seen_src.values()), list(seen_tgt.values())
-                assert len(src_data) == len(tgt_data)
-                print(f"Duplicate cases # : {len(dupes_ix)}:")
-                print(f"Uniq sent & segments unit # : {len(src_data)}")
-                """
             else:
                 print("Prepare train data using only segments unit")
                 src_data, tgt_data = [" ".join(sents) for sents in packed_src], [" ".join(sents) for sents in packed_tgt]
         else:
             print("No packing..")
+            src_data, tgt_data = corpus[self.src_lang], corpus[self.tgt_lang]
 
         for i, lines in enumerate(tqdm(zip(src_data, tgt_data), total=len(src_data))):
             category_data.append(
