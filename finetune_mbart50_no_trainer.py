@@ -468,7 +468,7 @@ def training_functions(args):
                         avg_loss = 0
                 
                 # NOTE Eval on every `val_check_interval`
-                if (train_step + 1) % eval_interval == 0 or train_step == len(eval_dataloader) - 1:
+                if (train_step + 1) % eval_interval == 0 or train_step == len(train_dataloader) - 1:
                     valid_progress_bar = tqdm(
                         range(len(eval_dataloader)),
                         disable=not accelerator.is_local_main_process,
