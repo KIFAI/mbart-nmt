@@ -515,7 +515,10 @@ def training_functions(args):
                             valid_progress_bar.update(1)
 
                         scores = compute_metrics(metric_modules.values())
-                        cur_score = scores[args.early_stop_metric]
+                        try:
+                            cur_score = scores[args.early_stop_metric]
+                        except :
+                            cur_score = scores['score']
                         
                         accelerator.log(scores, step=completed_steps)
                         scores.update({"epoch": epoch, "step": completed_steps})
