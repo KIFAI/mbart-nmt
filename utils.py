@@ -119,8 +119,8 @@ def load_metric_modules(args, metric_types:list=['accuracy', 'recall', 'precisio
     metric_modules = {}
 
     for m_t in metric_types:
-        if m_t == args.early_stop_metric:
-            metric_modules[m_t] = evaluate.load(m_t, keep_in_memory=False)
+        if m_t.find(args.early_stop_metric) != -1:
+            metric_modules[args.early_stop_metric] = evaluate.load(m_t, keep_in_memory=False)
 
     return metric_modules
 
