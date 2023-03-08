@@ -442,7 +442,7 @@ def training_functions(args):
     best_score = 0.0
     cur_patience = 0
 
-    metric_modules = load_metric_modules(args, metric_types=['accuracy', 'recall', 'precision', 'f1', 'sacrebleu'])
+    metric_modules = load_metric_modules(args, metric_types=['metrics/sacrebleu/sacrebleu.py'])
 
 
     # Now we train the model
