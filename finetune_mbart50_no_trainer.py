@@ -483,10 +483,11 @@ def training_functions(args):
                             generated_tokens_list = []
                             for lang in ["ko_KR", "en_XX"]:
                                 filtered_idxs = np.where(batch["input_ids"].cpu().numpy()[:,0]==tokenizer.lang_code_to_id[lang])
-                                with torch.no_grad():
-                                    preds = accelerator.unwrap_model(model).generate(batch["input_ids"][filtered_idxs], 
-                                                                                   attention_mask=batch["attention_mask"][filtered_idxs])
-                                    generated_tokens_list.append(torch.nn.functional.pad(preds, pad=(0, batch["input_ids"].size()[-1]-preds.shape[-1], 0, 0), mode='constant', value=tokenizer.pad_token_id))
+                                if batch["input_ids"][filtered_idxs].size()[0] != 0:
+                                    with torch.no_grad():
+                                        preds = accelerator.unwrap_model(model).generate(batch["input_ids"][filtered_idxs], 
+                                                                                       attention_mask=batch["attention_mask"][filtered_idxs])
+                                        generated_tokens_list.append(torch.nn.functional.pad(preds, pad=(0, batch["input_ids"].size()[-1]-preds.shape[-1], 0, 0), mode='constant', value=tokenizer.pad_token_id))
                             
                             generated_tokens = torch.cat(generated_tokens_list, dim=0)
                             generated_tokens = accelerator.gather(generated_tokens).cpu().numpy()
