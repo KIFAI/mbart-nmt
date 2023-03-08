@@ -81,7 +81,6 @@ def reduce_spm(m, filtered_lang_dict):
             rm_word2id[word] = i
     print(f"Total num of filtered vocab : {len(m.pieces) - len(rm_ix2word)}")
     
-    rm_ix2word
     for i in tqdm(reversed(list(rm_ix2word.keys())), total=len(rm_ix2word), desc="Remove unnecessary token.."):
         assert m.pieces[i].piece == rm_ix2word[i]
         # print(i, m.pieces[i].piece, rm_ix2word[i])
