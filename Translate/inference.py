@@ -157,7 +157,9 @@ class Translator():
             inputs = list(map(self.convert_to_inputs, src_sent))
             # Apply 'batch translation module' for inputs in parallel
             start = time.time()
-            translated_tokens = map(lambda source : self.model.translate_batch(source=source, target_prefix=[[tgt_lang]]*len(source) ,beam_size=2, max_decoding_length=1024, asynchronous=False, return_scores=return_scores), inputs)
+            translated_tokens = map(lambda source : self.model.translate_batch(source=source, target_prefix=[[tgt_lang]]*len(source),
+                max_batch_size=self.batch_size, batch_type='examples', beam_size=2, 
+                max_decoding_length=1024, asynchronous=False, return_scores=return_scores), inputs)
             end = time.time()
             print(f"\nElapsed time for translation : {end-start}")
             # Apply 'detokenize module for translated tokens' in parallel
