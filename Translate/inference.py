@@ -99,7 +99,6 @@ class Translator():
         Detokenize translated tokens
         '''
         return list(map(lambda x : {"translated" : self.tokenizer.convert_tokens_to_string(x[0].hypotheses[0][1:]).replace('<unk>', ''), "score" : x[0].scores[0]}, translated_tokens))
-        #return ' '.join(list(map(lambda x : self.tokenizer.convert_tokens_to_string(x.hypotheses[0][1:]).replace('<unk>', ''), translated_tokens)))
 
     def generate(self, src_sents:List[str], src_lang:str, tgt_lang:str, return_scores=True):
         '''

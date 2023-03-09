@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 import time
 
-from typing import Optional, List
+from typing import List, Union
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -30,15 +30,15 @@ app.add_middleware(
 )
 
 class Item(BaseModel):
-    q: List[str]
+    q: Union[str, List[str]]
     source: str
     target: str
 
 @app.post("/")
 async def translate(item: Item):
     req = dict(item)
-    print(req)
-
+    if isinstance(req['q'], str):
+        req['q'] = [req['q']]
     start = time.time()
     hypotheses = translator.generate(req['q'], src_lang=req['source'], tgt_lang=req['target'])
     end = time.time()
