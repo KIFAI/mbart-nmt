@@ -1,6 +1,7 @@
 import nltk
 import itertools
 import ctranslate2
+from typing import List
 from transformers import MBartForConditionalGeneration, MBart50TokenizerFast
 
 class Translator():
@@ -50,6 +51,10 @@ class Translator():
     def do_reassemble(self, tokenized_sents):
         '''
         Recombine sentences according to max length
+        args:
+            tokenized_sents : a sentence separated by two or more sentences
+        return:
+            segments : Recombined sentence elements from splitted sentence
         '''
         input_len, start_ix = 0, 0
         segments = []
@@ -64,6 +69,7 @@ class Translator():
                 start_ix = i+1
             else:
                 pass
+        print(segments)
         return segments
 
     def convert_to_inputs(self, src_sent):
@@ -92,15 +98,26 @@ class Translator():
         '''
         Detokenize translated tokens
         '''
-        return ' '.join(list(map(lambda x : self.tokenizer.convert_tokens_to_string(x.hypotheses[0][1:]).replace('<unk>', ''), translated_tokens)))
+        return list(map(lambda x : {"translated" : self.tokenizer.convert_tokens_to_string(x[0].hypotheses[0][1:]).replace('<unk>', ''), "score" : x[0].scores[0]}, translated_tokens))
+        #return ' '.join(list(map(lambda x : self.tokenizer.convert_tokens_to_string(x.hypotheses[0][1:]).replace('<unk>', ''), translated_tokens)))
 
-    def generate(self, src_sents, src_lang, tgt_lang, return_scores=True):
+    def generate(self, src_sents:List[str], src_lang:str, tgt_lang:str, return_scores=True):
         '''
         Main function of batch generation
+        args :
+            src_sents : [sent1, sent2, ...sent#n]
+            src_lang : ex) 'en_XX'
+            tgt_lang : ex) 'ko_KR'
+        returns :
+            preds :
+                [{'translated': '안녕하세요.', 'score': -1.2557563781738281}, {'translated': '반갑습니다.', 'score': -1.2079639434814453}, ...]
         '''
         self.tokenizer.src_lang = src_lang
 
         def batch(iterable, n=1):
+            '''
+            Generator configuring a list of sentences by a predefined batch size
+            '''
             l = len(iterable)
             for ndx in range(0, l, n):
                 yield iterable[ndx:min(ndx + n, l)]
@@ -109,9 +126,11 @@ class Translator():
         results = []
 
         for i, src_sent in enumerate(sentence_batch):
+            # Apply 'seperation or recombination for sents module' in parallel
             inputs = list(map(self.convert_to_inputs, src_sent))
+            # Apply 'batch translation module' for inputs in parallel
             translated_tokens = map(lambda source : self.model.translate_batch(source=source, target_prefix=[[tgt_lang]]*len(source) ,beam_size=2, max_decoding_length=self.max_length, asynchronous=False, return_scores=return_scores), inputs)
-            pred = list(map(self.detokenize, translated_tokens))
-            results.append(pred)
-
+            # Apply 'detokenize module for translated tokens' in parallel
+            pred = self.detokenize(translated_tokens)
+            results.extend(pred)
         return results
