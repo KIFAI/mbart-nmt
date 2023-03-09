@@ -1,7 +1,10 @@
 import nltk
+import time
 import itertools
 import ctranslate2
 from typing import List
+from statistics import mean
+from functools import reduce
 from transformers import MBartForConditionalGeneration, MBart50TokenizerFast
 
 class Translator():
@@ -94,11 +97,36 @@ class Translator():
         else:
             return self.do_reassemble(list(map(self.tokenizer.tokenize, splitted_sents)))
 
+    def __post_process(self, x):
+        '''
+        args:
+            x : <class 'ctranslate2.translator.TranslationResult'>
+        '''
+        return self.tokenizer.convert_tokens_to_string(x.hypotheses[0][1:]).replace('<unk>', '')
+
+    def __scoring(self, x):
+        '''
+        args:
+            x : <class 'ctranslate2.translator.TranslationResult'>
+        '''
+        return x.scores[0]
+
+    def __detokenize(self, TranslationResults):
+        '''
+        args:
+            TranslationResults : List of <class 'ctranslate2.translator.TranslationResult'>
+        '''
+        return {"translated" : ' '.join(list(map(self.__post_process, TranslationResults))), "score" : mean(list(map(self.__scoring, TranslationResults)))}
+    
     def detokenize(self, translated_tokens):
         '''
         Detokenize translated tokens
         '''
-        return list(map(lambda x : {"translated" : self.tokenizer.convert_tokens_to_string(x[0].hypotheses[0][1:]).replace('<unk>', ''), "score" : x[0].scores[0]}, translated_tokens))
+        start = time.time()
+        result = list(map(self.__detokenize, translated_tokens))
+        end = time.time()
+        print(f"Elased for detokenizing : {end-start}")
+        return result 
 
     def generate(self, src_sents:List[str], src_lang:str, tgt_lang:str, return_scores=True):
         '''
@@ -128,8 +156,12 @@ class Translator():
             # Apply 'seperation or recombination for sents module' in parallel
             inputs = list(map(self.convert_to_inputs, src_sent))
             # Apply 'batch translation module' for inputs in parallel
-            translated_tokens = map(lambda source : self.model.translate_batch(source=source, target_prefix=[[tgt_lang]]*len(source) ,beam_size=2, max_decoding_length=self.max_length, asynchronous=False, return_scores=return_scores), inputs)
+            start = time.time()
+            translated_tokens = map(lambda source : self.model.translate_batch(source=source, target_prefix=[[tgt_lang]]*len(source) ,beam_size=2, max_decoding_length=1024, asynchronous=False, return_scores=return_scores), inputs)
+            end = time.time()
+            print(f"Elapsed time for translation : {end-start}")
             # Apply 'detokenize module for translated tokens' in parallel
             pred = self.detokenize(translated_tokens)
             results.extend(pred)
+            #results.append(translated_tokens)
         return results
