@@ -72,7 +72,7 @@ class Translator():
                 start_ix = i+1
             else:
                 pass
-        print(segments)
+        print(f"segments : {segments}")
         return segments
 
     def convert_to_inputs(self, src_sent):
@@ -125,7 +125,7 @@ class Translator():
         start = time.time()
         result = list(map(self.__detokenize, translated_tokens))
         end = time.time()
-        print(f"Elased for detokenizing : {end-start}")
+        print(f"\nElapsed for detokenizing : {end-start}")
         return result 
 
     def generate(self, src_sents:List[str], src_lang:str, tgt_lang:str, return_scores=True):
@@ -159,9 +159,8 @@ class Translator():
             start = time.time()
             translated_tokens = map(lambda source : self.model.translate_batch(source=source, target_prefix=[[tgt_lang]]*len(source) ,beam_size=2, max_decoding_length=1024, asynchronous=False, return_scores=return_scores), inputs)
             end = time.time()
-            print(f"Elapsed time for translation : {end-start}")
+            print(f"\nElapsed time for translation : {end-start}")
             # Apply 'detokenize module for translated tokens' in parallel
             pred = self.detokenize(translated_tokens)
             results.extend(pred)
-            #results.append(translated_tokens)
         return results

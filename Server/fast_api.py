@@ -44,6 +44,6 @@ async def translate(item: Item):
     end = time.time()
 
     print(f"\n**pred**\n{hypotheses}")
-    print(f"Elaped time : {end-start}\n")
+    print(f"\nElapsed time for all process: {end-start}\n")
 
     return {'translatedText' : hypotheses}
