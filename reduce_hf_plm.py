@@ -27,7 +27,7 @@ def define_argparser():
     )
     parser.add_argument(
         "--reduction_path",
-        default='./src/plm/reduced_hf_mbart50_m2m_v2',
+        default='./src/plm/reduced_hf_mbart50_m2m_v3',
         type=str,
     )
 
@@ -44,6 +44,31 @@ def prepare_huggingface_plm(plm_name="facebook/mbart-large-50-many-to-many-mmt",
     
     return pre_config, pre_tokenizer, pre_model
 
+def expand_spm(spm, type_dict={"NORMAL":1, "UNKNOWN":2, "CONTROL":3}, addition_dict={"CONTROL":[("<bt>", 0.0)]}):
+    new_piece = type(spm.pieces[0])() #initilaize
+
+    for key, value in addition_dict.items():
+        if isinstance(value, list):
+            for v_pair in value:
+                if not isinstance(v_pair, tuple):
+                    raise TypeError("check values should be tuple with piece and score, ex) {'CONTROL':[('<bt>', 0.0)]}")
+                else:
+                    new_piece.piece = v_pair[0]
+                    new_piece.score = v_pair[1]
+                    new_piece.type = type_dict[key]
+                    spm.pieces.append(new_piece)
+                    print(f"Added below\n{new_piece}\n")
+        elif isinstance(value, tuple):
+            new_piece.piece = value[0]
+            new_piece.score = value[1]
+            new_piece.type = type_dict[key]
+            spm.pieces.append(new_piece)
+            print(f"Added below\n{new_piece}\n")
+        else:
+            raise TypeError("check whether values are UNION[tuple, LIST[tuple]], ex) {'CONTROL':('<bt>', 0.0)}")
+
+    return spm
+
 def filter_vocab(multilingual_vocab, regex_pattern):
     key, value = list(regex_pattern.items())[0]
     tmp_vocab = []
@@ -59,7 +84,7 @@ def filter_vocab(multilingual_vocab, regex_pattern):
     return tmp_vocab
 
 def extract_spm_vocab(spm, regex_patterns):
-    vocab = ['<unk>','<s>','</s>']
+    vocab = ['<unk>','<s>','</s>', '<bt>']
 
     for r_p in regex_patterns:
         vocab += filter_vocab(multilingual_vocab=[p.piece for p in spm.pieces],
@@ -107,7 +132,7 @@ def load_dict(pre_tokenizer, new_spm):
 
     reduced_pieces = [p.piece for p in new_spm.pieces]
     langs = ["ar_AR", "cs_CZ", "de_DE", "en_XX", "es_XX", "et_EE", "fi_FI", "fr_XX", "gu_IN", "hi_IN", "it_IT", "ja_XX", "kk_KZ", "ko_KR", "lt_LT", "lv_LV", "my_MM", "ne_NP", "nl_XX", "ro_RO", "ru_RU", "si_LK", "tr_TR", "vi_VN", "zh_CN", "af_ZA", "az_AZ", "bn_IN", "fa_IR", "he_IL", "hr_HR", "id_ID", "ka_GE", "km_KH", "mk_MK", "ml_IN", "mn_MN", "mr_IN", "pl_PL", "ps_AF", "pt_XX", "sv_SE", "sw_KE", "ta_IN", "te_IN", "th_TH", "tl_XX", "uk_UA", "ur_PK", "xh_ZA", "gl_ES", "sl_SI"]
-    symbols = ['<mask>', '<pad>']
+    symbols = ['<mask>', '<pad>', '<bt>']
 
     initialized_vocab_num = 0
     common_vocab_num = 0
@@ -170,13 +195,14 @@ def reduce_plm(pre_config, pre_model, pre_dict, new_dict,
     os.remove(f'{plm_local_path}/tokenizer.json')
 
     new_tokenizer = MBart50TokenizerFast.from_pretrained(plm_local_path)
-    new_tokenizer.save_pretrained(reduced_model_path)
-    print(f"New tokenizer's vocab size : {new_tokenizer.vocab_size}")
     
-    try:
-        assert len(new_dict) == new_tokenizer.vocab_size
-    except Exception as ex:
-        print("Check len of new_tokenizer's vocab and vocab_size property")
+    print(f"New model's vocab size : {new_config.vocab_size}, New tokenizer's vocab size : {new_tokenizer.vocab_size}")
+    assert new_config.vocab_size == new_tokenizer.vocab_size
+    
+    new_tokenizer.save_pretrained(reduced_model_path)
+    
+    print(f"New tokenizer's vocab size : {new_tokenizer.vocab_size}")
+    assert len(new_dict) == new_tokenizer.vocab_size
         
     shutil.rmtree(plm_local_path)
 
@@ -225,9 +251,10 @@ def main(args):
             {'punc':re.compile(r"^▁?[!\"#$%&\\'\(\)*\+,\-\./:;<=>\?@\[\]\^_▁`{\|}~]$")},
             {'ko':re.compile("▁?[\uAC00-\uD7AF|\u1100-\u11FF|\uA960-\uA97F|\uD7B0-\uD7FF|\u3130-\u318F]+")},
             {'en':re.compile(r'▁?[a-zA-Z]+')},
-            {'hanja':re.compile("▁?[\u2e80-\u2eff\u31c0-\u31ef\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fbf\uf900-\ufaff]+")}
+            #{'hanja':re.compile("▁?[\u2e80-\u2eff\u31c0-\u31ef\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fbf\uf900-\ufaff]+")}
         ]
-
+    
+    pre_spm = expand_spm(spm=pre_spm, type_dict={"NORMAL":1, "UNKNOWN":2, "CONTROL":3}, addition_dict={"CONTROL":[("<bt>", 0.0)]})
     filtered_lang_dict = extract_spm_vocab(spm=pre_spm, regex_patterns=regex_patterns)
     new_spm = reduce_spm(pre_spm, filtered_lang_dict)
 
