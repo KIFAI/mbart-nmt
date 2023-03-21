@@ -10,10 +10,8 @@ from transformers import MBartForConditionalGeneration, MBart50TokenizerFast
 class Translator():
     '''
     Allow detokenizing sequences in batchs
-
     **Performance tips**
     Below are some general recommendations to further improve performance. Many of these recommendations were used in the WNGT 2020 efficiency task submission.
-
     Set the compute type to "auto" to automatically select the fastest execution path on the current system
     Reduce the beam size to the minimum value that meets your quality requirement
     When using a beam size of 1, keep return_scores disabled if you are not using prediction scores: the final softmax layer can be skipped
@@ -22,14 +20,12 @@ class Translator():
     Consider using {ref}translation:dynamic vocabulary reduction for translation
     
     <On CPU>
-
     Use an Intel CPU supporting AVX512
     If you are processing a large volume of data, prefer increasing inter_threads over intra_threads and use stream methods (methods whose name ends with _file or _iterable)
     Avoid the total number of threads inter_threads * intra_threads to be larger than the number of physical cores
     For single core execution on Intel CPUs, consider enabling packed GEMM (set the environment variable CT2_USE_EXPERIMENTAL_PACKED_GEMM=1)
     
     <On GPU>
-
     Use a larger batch size
     Use a NVIDIA GPU with Tensor Cores (Compute Capability >= 7.0)
     Pass multiple GPU IDs to device_index to execute on multiple GPUs
@@ -54,9 +50,9 @@ class Translator():
     def do_reassemble(self, tokenized_sents):
         '''
         Recombine sentences according to max length
-        args:
+        Args:
             tokenized_sents : a sentence separated by two or more sentences
-        return:
+        Return:
             segments : Recombined sentence elements from splitted sentence
         '''
         input_len, start_ix = 0, 0
@@ -64,42 +60,35 @@ class Translator():
 
         for i, t_s in enumerate(tokenized_sents):
             input_len += len(t_s)
-            if i+1 == len(tokenized_sents):
-                seg = list(itertools.chain(*tokenized_sents[start_ix:]))
-                segments.append({"input":[self.tokenizer.src_lang] + seg + [self.tokenizer.eos_token],
-                                "src_chr_len":len(self.tokenizer.convert_tokens_to_string(seg)),
-                                "src_tok_len":len(seg)})
-
-            elif input_len + len(tokenized_sents[i+1]) > self.max_length:
-                seg = list(itertools.chain(*tokenized_sents[start_ix:i+1]))
-                segments.append({"input":[self.tokenizer.src_lang] + seg + [self.tokenizer.eos_token],
-                                "src_chr_len":len(self.tokenizer.convert_tokens_to_string(seg)),
-                                "src_tok_len":len(seg)})
+            if i + 1 == len(tokenized_sents) or input_len + len(tokenized_sents[i + 1]) > self.max_length:
+                end_ix = i + 1 if i + 1 == len(tokenized_sents) else i + 1
+                seg = list(itertools.chain(*tokenized_sents[start_ix:end_ix]))
+                segments.append({"seg": [self.tokenizer.src_lang] + seg + [self.tokenizer.eos_token],
+                                 "src_chr_len": len(self.tokenizer.convert_tokens_to_string(seg)),
+                                 "src_tok_len": len(seg)})
                 input_len = 0
-                start_ix = i+1
-            else:
-                pass
+                start_ix = i + 1
 
-        print(f"segments : {segments}")
         return segments
 
     def convert_to_inputs(self, src_sent):
         '''
         Create Ctranslate input format according to the number of sent element
         '''
+        def divide_inputs(l, n):
+            for i in range(0, len(l), n):
+                yield {"seg":[self.tokenizer.src_lang] + l[i:i+n] + [self.tokenizer.eos_token], 
+                        "src_chr_len":len(self.tokenizer.convert_tokens_to_string(l[i:i+n])),
+                        "src_tok_len":len(l[i:i+n])}
+
         splitted_sents = nltk.sent_tokenize(src_sent)
         print(f"\nSplitted Length of input : {len(splitted_sents)}")
+        
         if len(splitted_sents) == 1:
             print(f"Do simply segmentation by max decoding length")
 
-            def devide_inputs(l, n):
-                for i in range(0, len(l), n):
-                    yield {"input":[self.tokenizer.src_lang] + l[i:i+n] + [self.tokenizer.eos_token], 
-                            "src_chr_len":len(self.tokenizer.convert_tokens_to_string(l[i:i+n])),
-                            "src_tok_len":len(l[i:i+n])}
-
             tokenized_sent = self.tokenizer.tokenize(src_sent)
-            segments = list(devide_inputs(tokenized_sent, self.max_length))
+            segments = list(divide_inputs(tokenized_sent, self.max_length))
 
             print(f"Divided input's length : {len(segments)}")
             print(f"segments : {segments}")
@@ -109,28 +98,28 @@ class Translator():
 
     def __detokenize(self, x):
         '''
-        args:
+        Args:
             x : <class 'ctranslate2.translator.TranslationResult'>
         '''
         return self.tokenizer.convert_tokens_to_string(x.hypotheses[0][1:]).replace('<unk>', '')
 
     def __scoring(self, x):
         '''
-        args:
+        Args:
             x : <class 'ctranslate2.translator.TranslationResult'>
         '''
         return x.scores[0]
 
     def __get_tgt_lengths(self, x):
         '''
-        args:
+        Args:
             x : <class 'ctranslate2.translator.TranslationResult'> 
         '''
         return len(x.hypotheses[0][1:])
 
     def __post_process(self, TranslationResults):
         '''
-        args:
+        Args:
             TranslationResults : List of <class 'ctranslate2.translator.TranslationResult'>
         '''
         return {"translated" : ' '.join(list(map(self.__detokenize, TranslationResults))), 
@@ -150,13 +139,14 @@ class Translator():
     def generate(self, src_sents:List[str], src_lang:str, tgt_lang:str, return_scores=True):
         '''
         Main function of batch generation
-        args :
+        Args :
             src_sents : [sent1, sent2, ...sent#n]
             src_lang : ex) 'en_XX'
             tgt_lang : ex) 'ko_KR'
-        returns :
+            return_scores : Boolean
+        Returns :
             preds :
-                [{'translated': '안녕하세요.', 'score': -1.2557563781738281}, {'translated': '반갑습니다.', 'score': -1.2079639434814453}, ...]
+                [{'translated': 'Hello', 'score': -1.49609375, 'tgt_tok_len': 1, 'src_chr_len': 5, 'src_tok_len': 4}, {'translated': 'Nice to meet you.', 'score': -1.357421875, 'tgt_tok_len': 6, 'src_chr_len': 5, 'src_tok_len': 4}, ...]
         '''
         self.tokenizer.src_lang = src_lang
 
@@ -174,7 +164,7 @@ class Translator():
         for i, src_sent in enumerate(sentence_batch):
             # Apply 'seperation or recombination for sents module' in parallel
             converted_inputs = list(map(self.convert_to_inputs, src_sent))
-            inputs, src_chr_len, src_tok_len = [[e["input"] for e in c_i] for c_i in converted_inputs], [[e["src_chr_len"] for e in c_i] for c_i in converted_inputs], [[e["src_tok_len"] for e in c_i] for c_i in converted_inputs]
+            inputs, src_chr_len, src_tok_len = [[e["seg"] for e in c_i] for c_i in converted_inputs], [[e["src_chr_len"] for e in c_i] for c_i in converted_inputs], [[e["src_tok_len"] for e in c_i] for c_i in converted_inputs]
 
             # Apply 'batch translation module' for inputs in parallel
             start = time.time()
@@ -191,4 +181,6 @@ class Translator():
             for i, p in enumerate(pred):
                 p.update({"src_chr_len":sum(src_chr_len[i]), "src_tok_len":sum(src_tok_len[i])})
             results.extend(pred)
+
         return results
+
