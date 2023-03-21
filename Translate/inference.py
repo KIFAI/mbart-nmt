@@ -65,13 +65,21 @@ class Translator():
         for i, t_s in enumerate(tokenized_sents):
             input_len += len(t_s)
             if i+1 == len(tokenized_sents):
-                segments.append([self.tokenizer.src_lang] + list(itertools.chain(*tokenized_sents[start_ix:])) + [self.tokenizer.eos_token])
+                seg = list(itertools.chain(*tokenized_sents[start_ix:]))
+                segments.append({"input":[self.tokenizer.src_lang] + seg + [self.tokenizer.eos_token],
+                                "src_chr_len":len(self.tokenizer.convert_tokens_to_string(seg)),
+                                "src_tok_len":len(seg)})
+
             elif input_len + len(tokenized_sents[i+1]) > self.max_length:
-                segments.append([self.tokenizer.src_lang] + list(itertools.chain(*tokenized_sents[start_ix:i+1])) + [self.tokenizer.eos_token])
+                seg = list(itertools.chain(*tokenized_sents[start_ix:i+1]))
+                segments.append({"input":[self.tokenizer.src_lang] + seg + [self.tokenizer.eos_token],
+                                "src_chr_len":len(self.tokenizer.convert_tokens_to_string(seg)),
+                                "src_tok_len":len(seg)})
                 input_len = 0
                 start_ix = i+1
             else:
                 pass
+
         print(f"segments : {segments}")
         return segments
 
@@ -86,7 +94,9 @@ class Translator():
 
             def devide_inputs(l, n):
                 for i in range(0, len(l), n):
-                    yield [self.tokenizer.src_lang] + l[i:i+n] + [self.tokenizer.eos_token]
+                    yield {"input":[self.tokenizer.src_lang] + l[i:i+n] + [self.tokenizer.eos_token], 
+                            "src_chr_len":len(self.tokenizer.convert_tokens_to_string(l[i:i+n])),
+                            "src_tok_len":len(l[i:i+n])}
 
             tokenized_sent = self.tokenizer.tokenize(src_sent)
             segments = list(devide_inputs(tokenized_sent, self.max_length))
@@ -97,7 +107,7 @@ class Translator():
         else:
             return self.do_reassemble(list(map(self.tokenizer.tokenize, splitted_sents)))
 
-    def __post_process(self, x):
+    def __detokenize(self, x):
         '''
         args:
             x : <class 'ctranslate2.translator.TranslationResult'>
@@ -111,22 +121,31 @@ class Translator():
         '''
         return x.scores[0]
 
-    def __detokenize(self, TranslationResults):
+    def __get_tgt_lengths(self, x):
+        '''
+        args:
+            x : <class 'ctranslate2.translator.TranslationResult'> 
+        '''
+        return len(x.hypotheses[0][1:])
+
+    def __post_process(self, TranslationResults):
         '''
         args:
             TranslationResults : List of <class 'ctranslate2.translator.TranslationResult'>
         '''
-        return {"translated" : ' '.join(list(map(self.__post_process, TranslationResults))), "score" : mean(list(map(self.__scoring, TranslationResults)))}
+        return {"translated" : ' '.join(list(map(self.__detokenize, TranslationResults))), 
+                "score" : mean(list(map(self.__scoring, TranslationResults))),
+                "tgt_tok_len" : sum(list(map(self.__get_tgt_lengths, TranslationResults)))}
     
-    def detokenize(self, translated_tokens):
+    def post_process(self, translated_tokens):
         '''
         Detokenize translated tokens
         '''
         start = time.time()
-        result = list(map(self.__detokenize, translated_tokens))
+        result = list(map(self.__post_process, translated_tokens))
         end = time.time()
         print(f"\nElapsed for detokenizing : {end-start}")
-        return result 
+        return result
 
     def generate(self, src_sents:List[str], src_lang:str, tgt_lang:str, return_scores=True):
         '''
@@ -154,7 +173,9 @@ class Translator():
 
         for i, src_sent in enumerate(sentence_batch):
             # Apply 'seperation or recombination for sents module' in parallel
-            inputs = list(map(self.convert_to_inputs, src_sent))
+            converted_inputs = list(map(self.convert_to_inputs, src_sent))
+            inputs, src_chr_len, src_tok_len = [[e["input"] for e in c_i] for c_i in converted_inputs], [[e["src_chr_len"] for e in c_i] for c_i in converted_inputs], [[e["src_tok_len"] for e in c_i] for c_i in converted_inputs]
+
             # Apply 'batch translation module' for inputs in parallel
             start = time.time()
             translated_tokens = map(lambda source : self.model.translate_batch(source=source, target_prefix=[[tgt_lang]]*len(source),
@@ -163,6 +184,11 @@ class Translator():
             end = time.time()
             print(f"\nElapsed time for translation : {end-start}")
             # Apply 'detokenize module for translated tokens' in parallel
-            pred = self.detokenize(translated_tokens)
+            pred = self.post_process(translated_tokens)
+            
+            assert len(pred) == len(src_chr_len) == len(src_tok_len)
+            
+            for i, p in enumerate(pred):
+                p.update({"src_chr_len":sum(src_chr_len[i]), "src_tok_len":sum(src_tok_len[i])})
             results.extend(pred)
         return results
