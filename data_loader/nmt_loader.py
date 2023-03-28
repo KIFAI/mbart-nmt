@@ -126,8 +126,8 @@ class Processor:
         mbart_tokenizer.src_lang = src_lang
         mbart_tokenizer.tgt_lang = tgt_lang
 
-        inputs = [ex for ex in examples[src_lang]]
-        targets = [ex for ex in examples[tgt_lang]]
+        inputs, targets = examples[src_lang], examples[tgt_lang]
+        
         if drop_case:
             model_inputs = mbart_tokenizer(inputs)
 
