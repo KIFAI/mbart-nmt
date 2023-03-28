@@ -27,15 +27,10 @@ class NmtDataLoader:
         Load splited src&tgt lang's corpus into huggingface dataset format
         """
         category_data = []
-        # src_path = os.path.join(corpus_path, category)
-        # tgt_path = os.path.join(corpus_path, category)
-
-        # with open(f"{src_path}.{self.src_lang}", "r") as src, open(f"{tgt_path}.{self.tgt_lang}", "r") as tgt:
-        #     src_data = src.readlines()
-        #     tgt_data = tgt.readlines()
-
+     
         corpus = pd.read_csv(corpus_path, sep="\t")
         print(corpus.head())
+
         src_data, tgt_data = corpus[self.src_lang], corpus[self.tgt_lang]
 
         if packing and (packing_size is not None):
@@ -88,16 +83,12 @@ class NmtDataLoader:
             print("No packing..")
             src_data, tgt_data = corpus[self.src_lang], corpus[self.tgt_lang]
 
-        for i, lines in enumerate(tqdm(zip(src_data, tgt_data), total=len(src_data))):
-            category_data.append(
-                {
-                    "translation": {
-                        f"{self.src_lang}": lines[0].rstrip("\n"),
-                        f"{self.tgt_lang}": lines[1].rstrip("\n"),
-                    }
-                }
-            )
-        return Dataset.from_pandas(pd.DataFrame(category_data))
+        category_data = {
+                f"{self.src_lang}" : [src_line.rstrip("\n") for src_line in src_data],
+                f"{self.tgt_lang}" : [tgt_line.rstrip("\n") for tgt_line in tgt_data]
+            }
+
+        return Dataset.from_dict(category_data)
 
     def get_tokenized_dataset(self, batch_size=20000, num_proc=8):
         self.tokenized_datasets = self.raw_datasets.map(
@@ -135,8 +126,8 @@ class Processor:
         mbart_tokenizer.src_lang = src_lang
         mbart_tokenizer.tgt_lang = tgt_lang
 
-        inputs = [ex[src_lang] for ex in examples["translation"]]
-        targets = [ex[tgt_lang] for ex in examples["translation"]]
+        inputs = [ex for ex in examples[src_lang]]
+        targets = [ex for ex in examples[tgt_lang]]
         if drop_case:
             model_inputs = mbart_tokenizer(inputs)
 
