@@ -12,8 +12,6 @@ from utils import *
 from datetime import timedelta
 from tqdm.auto import tqdm
 
-#from data_loader.prepare_data import PreProcessor, Preparator
-#from data_loader.data_collator import DataCollatorForDenoisingTasks
 from data_loader.nmt_loader import NmtDataLoader, Processor
 
 from torch.utils.data import DataLoader
@@ -48,12 +46,22 @@ def define_argparser():
     parser.add_argument(
         "--corpus_path",
         default="./src/train_corpus/cased_corpus_exp",
-        type=str,
+        type=str
+    )
+    parser.add_argument(
+        "--hf_dataset_abs_path",
+        default="./src/hf_dataset/custom_dataset",
+        type=str
     )
     parser.add_argument(
         "--plm_path",
         default="./src/plm/reduced_hf_mbart50_m2m_v2",
-        type=str,
+        type=str
+    )
+    parser.add_argument(
+        "--processor_batch_size",
+        default=20000,
+        type=int
     )
     parser.add_argument(
         "--num_proc",
@@ -73,7 +81,7 @@ def define_argparser():
     parser.add_argument(
         "--mixed_precision",
         default="fp16",
-        type=str,
+        type=str
         help="Whether or not to use mixed precision training (fp16 or bfloat16). Choose from ‘no’,‘fp16’,‘bf16’."
     )
     parser.add_argument(
@@ -120,6 +128,11 @@ def define_argparser():
         '--hybrid',
         action='store_true',
         help='Prepare train data using sents & segments unit',
+    )
+    parser.add_argument(
+        '--use_preset',
+        action='store_true',
+        help='Use prepared hf dataset'
     )
     parser.add_argument(
         '--adam_beta1',
@@ -249,16 +262,14 @@ def get_dataloaders(accelerator: Accelerator, model, tokenizer, args):
             'ArgumentParser' object
     """
     with accelerator.main_process_first():
-        preprocessor = Processor(tokenizer, args.src_lang, args.tgt_lang, args.max_token_length, args.drop_case, args.bi_direction)
-        preparator = NmtDataLoader(tokenizer, preprocessor, args.corpus_path, args.packing_data, args.packing_size, args.hybrid)
-        segment_datasets = preparator.get_tokenized_dataset(batch_size=20000, num_proc=args.num_proc)
-        #preprocessor = PreProcessor(tokenizer, sent_tokenizer)
-        #preparator = Preparator(preprocessor, args)
-        #segment_datasets = preparator.prepare_batched_segments(batch_size=20000)
-
-    #Denoising Collator sets each seed with a number for each device, and inputs that are noised by text infilling / sentence permutation are dynamically created.
-    #data_collator = DataCollatorForDenoisingTasks(tokenizer=tokenizer, max_token_length=args.max_token_length, seed=torch.cuda.current_device())
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding='max_length', max_length=512)
+        if not args.use_preset:
+            preprocessor = Processor(tokenizer, args.src_lang, args.tgt_lang, args.max_token_length, args.drop_case, args.bi_direction)
+            preparator = NmtDataLoader(tokenizer, preprocessor, args.corpus_path, args.packing_data, args.packing_size, args.hybrid)
+            segment_datasets = preparator.get_tokenized_dataset(batch_size=args.processor_batch_size, num_proc=args.num_proc)
+        else:
+            from datasets import load_from_disk
+            print(f"Loading custom dataset of hf format from disk in {args.hf_dataset_abs_path}")
+            segment_datasets = load_from_disk(args.hf_dataset_abs_path)
 
     g = torch.Generator()
     g.manual_seed(args.trainer_seed)
@@ -270,14 +281,14 @@ def get_dataloaders(accelerator: Accelerator, model, tokenizer, args):
 
     return train_dataloader, eval_dataloader
 
-
 def training_functions(args):
     # Initialize accelerator
-    ipg_handler = InitProcessGroupKwargs(timeout=timedelta(seconds=3600))
+    ipg_handler = InitProcessGroupKwargs(timeout=timedelta(seconds=18000))
 
     if args.ds_config_path is not None:
         with open(args.ds_config_path, "r") as f:
             ds_config = json.load(f)
+
         if args.mixed_precision == 'bf16' and (args.mixed_precision not in ds_config.keys()):
             try:
                 del ds_config['fp16']
@@ -285,10 +296,13 @@ def training_functions(args):
                 print(ex)
             ds_config.update({args.mixed_precision: {'enabled': True}})
         deepspeed_plugin = DeepSpeedPlugin(hf_ds_config=ds_config)
+
         if int(os.environ.get('LOCAL_RANK', -1)) == 0:
             logger.info(f"Using pre-defined deep speed configuration about optimizer, scheduler, etc.. Refer to below aceelerator's state\n")
+
     else:
         deepspeed_plugin = None
+
         if int(os.environ.get('LOCAL_RANK', -1)) == 0:
             logger.info(f"Using user defined arguments about optimizer, scheduler, etc...\n")
     
@@ -443,7 +457,6 @@ def training_functions(args):
     cur_patience = 0
 
     metric_modules = load_metric_modules(args, metric_types=[os.path.join(args.base_path, 'metrics/sacrebleu/sacrebleu.py')])
-
 
     # Now we train the model
     for epoch in range(args.num_epochs):
