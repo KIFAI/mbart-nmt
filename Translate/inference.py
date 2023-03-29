@@ -170,7 +170,7 @@ class Translator():
 
         for i, src_sent in enumerate(sentence_batch):
             # Apply 'seperation or recombination for sents module' in parallel
-            src_sent = [s for s in src_sent if s != '']
+            src_sent = [s for s in src_sent if s.strip() != '']
             converted_inputs = list(map(self.convert_to_inputs, src_sent))
             
             inputs, src_chr_len, src_tok_len = [[e["seg"] for e in c_i] for c_i in converted_inputs], [[e["src_chr_len"] for e in c_i] for c_i in converted_inputs], [[e["src_tok_len"] for e in c_i] for c_i in converted_inputs]
