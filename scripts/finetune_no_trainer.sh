@@ -3,7 +3,9 @@ BASE_PATH=/opt/project/translation/repo/mbart-nmt
 DEEPSPEED_CONFIG_PATH=/ds_config/zero_stage2_config.json
 TOKENIZER_PATH=/src/plm/reduced_hf_mbart50_m2m_v2
 CORPUS_PATH=/src/train_corpus/cased_corpus_exp_v2
+HF_DATASET_ABS_PATH=/src/hf_dataset/custom_dataset
 PLM_PATH=/src/plm/reduced_hf_mbart50_m2m_v2
+PROCESSOR_BATCH_SIZE=20000
 NUM_PROC=8
 MAX_TOKEN_LENGTH=512
 BATCH_SIZE=18
@@ -32,6 +34,7 @@ accelerate launch --main_process_port ${MAIN_PORT} ${BASE_PATH}/finetune_mbart50
     --tokenizer_path ${BASE_PATH}${TOKENIZER_PATH} \
     --corpus_path ${BASE_PATH}${CORPUS_PATH} \
     --plm_path ${BASE_PATH}${PLM_PATH} \
+    --processor_batch_size ${PROCESSOR_BATCH_SIZE} \
     --num_proc ${NUM_PROC} \
     --max_token_length ${MAX_TOKEN_LENGTH} \
     --batch_size ${BATCH_SIZE} \
@@ -45,6 +48,7 @@ accelerate launch --main_process_port ${MAIN_PORT} ${BASE_PATH}/finetune_mbart50
     --packing_data \
     --packing_size ${PACKING_SIZE} \
     --hybrid \
+    --use_preset \
     --adam_beta1 ${ADAM_BETA1} \
     --adam_beta2 ${ADAM_BETA2} \
     --adam_epsilon ${ADAM_EPSILON} \

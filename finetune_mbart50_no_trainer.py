@@ -81,7 +81,7 @@ def define_argparser():
     parser.add_argument(
         "--mixed_precision",
         default="fp16",
-        type=str
+        type=str,
         help="Whether or not to use mixed precision training (fp16 or bfloat16). Choose from ‘no’,‘fp16’,‘bf16’."
     )
     parser.add_argument(
