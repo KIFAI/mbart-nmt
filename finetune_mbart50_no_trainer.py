@@ -270,6 +270,8 @@ def get_dataloaders(accelerator: Accelerator, model, tokenizer, args):
             from datasets import load_from_disk
             print(f"Loading custom dataset of hf format from disk in {args.hf_dataset_abs_path}")
             segment_datasets = load_from_disk(args.hf_dataset_abs_path)
+    
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding='max_length', max_length=512)
 
     g = torch.Generator()
     g.manual_seed(args.trainer_seed)
