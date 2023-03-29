@@ -12,7 +12,7 @@ from Translate.inference import Translator
 
 par_dir = os.path.dirname(os.path.abspath('./'))
 model_path = os.path.join(par_dir, 'FastModel/Ctrans-MBart/ctrans_fp16')
-translator = Translator(model_path=model_path, model_type='Ctranslate2', device='cuda', device_index=[1,5],
+translator = Translator(model_path=model_path, model_type='Ctranslate2', device='cuda', device_index=[1,2,3],
                         max_length=240, batch_size=32)
 
 app = FastAPI()
@@ -57,8 +57,8 @@ async def translate(item: Item):
         req['q'] = [req['q']]
 
     query_order = ['single' if len(q.split('\n')) == 1 else 'multi' for q in req['q']]
-    single_lines = [req['q'][i] for i, s in enumerate(query_order) if query_order[i] == 'single']
-    multi_lines = [req['q'][i].split('\n') for i, s in enumerate(query_order) if query_order[i] == 'multi']
+    single_lines = [req['q'][i].strip() for i, s in enumerate(query_order) if query_order[i] == 'single']
+    multi_lines = [req['q'][i].strip().split('\n') for i, s in enumerate(query_order) if query_order[i] == 'multi']
     
     if list(set(query_order)) == ['single']:
         start = time.time()
