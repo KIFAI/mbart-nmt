@@ -68,6 +68,9 @@ class Translator():
                                  "src_tok_len": len(seg)})
                 input_len = 0
                 start_ix = i + 1
+        
+        #print(f"Divided input's length : {len(segments)}")
+        #print(f"Segments reassembled : {segments}")
 
         return segments
 
@@ -80,20 +83,24 @@ class Translator():
                 yield {"seg":[self.tokenizer.src_lang] + l[i:i+n] + [self.tokenizer.eos_token], 
                         "src_chr_len":len(self.tokenizer.convert_tokens_to_string(l[i:i+n])),
                         "src_tok_len":len(l[i:i+n])}
-
+        
         splitted_sents = nltk.sent_tokenize(src_sent)
-        print(f"\nSplitted Length of input : {len(splitted_sents)}")
+        #print(f"\nSplitted Length of input : {len(splitted_sents)}")
         
         if len(splitted_sents) == 1:
-            print(f"Do simply segmentation by max decoding length")
+            #print(f"Do simply segmentation by max decoding length")
 
             tokenized_sent = self.tokenizer.tokenize(src_sent)
             segments = list(divide_inputs(tokenized_sent, self.max_length))
 
-            print(f"Divided input's length : {len(segments)}")
-            print(f"segments : {segments}")
+            #print(f"Divided input's length : {len(segments)}")
+            #print(f"Segments simply splitted : {segments}")
+
             return segments
+
         else:
+            #print(f"Do reassembling setns by max decoding length")
+
             return self.do_reassemble(list(map(self.tokenizer.tokenize, splitted_sents)))
 
     def __detokenize(self, x):
@@ -133,7 +140,7 @@ class Translator():
         start = time.time()
         result = list(map(self.__post_process, translated_tokens))
         end = time.time()
-        print(f"\nElapsed for detokenizing : {end-start}")
+        #print(f"\nElapsed for detokenizing : {end-start}")
         return result
 
     def generate(self, src_sents:List[str], src_lang:str, tgt_lang:str, return_scores=True):
@@ -163,7 +170,9 @@ class Translator():
 
         for i, src_sent in enumerate(sentence_batch):
             # Apply 'seperation or recombination for sents module' in parallel
+            src_sent = [s for s in src_sent if s != '']
             converted_inputs = list(map(self.convert_to_inputs, src_sent))
+            
             inputs, src_chr_len, src_tok_len = [[e["seg"] for e in c_i] for c_i in converted_inputs], [[e["src_chr_len"] for e in c_i] for c_i in converted_inputs], [[e["src_tok_len"] for e in c_i] for c_i in converted_inputs]
 
             # Apply 'batch translation module' for inputs in parallel
@@ -172,7 +181,7 @@ class Translator():
                 max_batch_size=self.batch_size, batch_type='examples', beam_size=2, 
                 max_decoding_length=1024, asynchronous=False, return_scores=return_scores), inputs)
             end = time.time()
-            print(f"\nElapsed time for translation : {end-start}")
+            #print(f"\nElapsed time for translation : {end-start}")
             # Apply 'detokenize module for translated tokens' in parallel
             pred = self.post_process(translated_tokens)
             
