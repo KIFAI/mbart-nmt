@@ -40,15 +40,18 @@ def translate_multi_lines(multi_lines, src_lang, tgt_lang):
         multi_lines : splitted sentence by new line
     Returns:
         translated_multi_lines
-    ''' 
-    indices = [i for i, line in enumerate(multi_lines) if line == '']
-    multi_lines = [line for line in multi_lines if line != '']
-
+    '''
+    indices = []
+    while '' in multi_lines:
+        index = multi_lines.index('')
+        indices.append(index)
+        multi_lines.pop(index)
+    
     translated_multi_lines = translator.generate(multi_lines, src_lang=src_lang, tgt_lang=tgt_lang)
 
     for index in reversed(indices):
         translated_multi_lines.insert(index, {"translated":'', "score":0, "tgt_tok_len":0, "src_chr_len":0, "src_tok_len":0})
-
+    
     return translated_multi_lines
 
 def process_multi_lines(translated_multi_lines):
@@ -59,20 +62,29 @@ def process_multi_lines(translated_multi_lines):
         result
     '''
     result = {}
-
+    
     for d in translated_multi_lines:
         for key, value in d.items():
             if key == 'translated':
-                result[key] = f"{result.get(key, '')}\n{value}".strip()
+                if key not in result:
+                    result[key] = value
+                else:
+                    result[key] += f"\n{value}"
             else:
-                result[key] = result.get(key, 0) + value
+                if key not in result:
+                    result[key] = value
+                else:
+                    result[key] += value
     return result
 
 @app.post("/")
 async def translate(item: Item):
     req = dict(item)
     if isinstance(req['q'], str):
-        req['q'] = [req['q']]
+        if req['q'] == '':
+            return {'translatedText' : [{"translated":'', "score":0, "tgt_tok_len":0, "src_chr_len":0, "src_tok_len":0}]}
+        else:
+            req['q'] = [req['q']]
 
     query_order = ['single' if len(q.split('\n')) == 1 else 'multi' for q in req['q']]
     single_lines = [line.strip() for line, order in zip(req['q'], query_order) if order == 'single']
