@@ -34,9 +34,10 @@ export const TranslateBox = () => {
         }
         try {
 	    const json = JSON.stringify({ q, source, target})
-            let res = await axios.post("", { q, source, target, format:"text"});
-            res = res.data.translatedText;
-            setOutput(res);
+            let res = await axios.post("", { q, source, target, format:"text"})
+            res = res.data.translatedText.map(el => el['translated']).join('\n');
+            
+	    setOutput(res);
         } catch (err) {
             console.log(err);
         }
@@ -89,7 +90,7 @@ export const TranslateBox = () => {
                 <div>
                     <TargetSelectBox id={'target'} select={handleSelectChange} />
                     <div className="outputResult box">
-                        <p id="output">{output}</p>
+	    		{output.split('\n').map((item, i) => <p key={i} style={{marginTop:0}}>{item}</p>)}
                     </div>
                     <div className="iconBox">
                         <p>{output.length}/250</p>

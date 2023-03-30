@@ -97,7 +97,7 @@ class TransBot():
                     requests.post(url=f'{self.base_url}/api/v4/posts',
                             headers={'Content-Type': 'application/json;charset=UTF-8', 'Authorization':f'Bearer {self.bot_access_token}'},
                             data=json.dumps({"user_id" : self.bot_id, "channel_id":channel_id,
-                                "message":f"**번역문**\n{trans}"}))
+                                "message":f"**번역문**\n{' '.join([d['translated'] for d in trans])}"}))
 
         else:
             pass
