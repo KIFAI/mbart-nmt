@@ -86,7 +86,7 @@ async def translate(item: Item):
         else:
             req['q'] = [req['q']]
 
-    query_order = ['single' if len(q.split('\n')) == 1 else 'multi' for q in req['q']]
+    query_order = ['single' if len(q.split('\n')) == 1 and q.split('\n') != [''] else 'multi' for q in req['q']]
     single_lines = [line.strip() for line, order in zip(req['q'], query_order) if order == 'single']
     multi_lines = [line.strip().split('\n') for line, order in zip(req['q'], query_order) if order == 'multi']
 
@@ -115,7 +115,7 @@ async def translate(item: Item):
         translated_single_lines = translator.generate(single_lines, src_lang=req['source'], tgt_lang=req['target'])
         translated_multi_lines = [process_multi_lines(translate_multi_lines(m_l, src_lang=req['source'], tgt_lang=req['target'])) for m_l in multi_lines]
         end = time.time()
-
+        
         hypotheses, single_index = [], 0
         for sent_type in query_order:
             if sent_type == 'single':
@@ -123,9 +123,8 @@ async def translate(item: Item):
                 single_index += 1
             else:
                 hypotheses.append(translated_multi_lines.pop(0))
-
+        
         #print(f"\n**preds of single and multi lines**\n{hypotheses}")
         print(f"\nElapsed time for translating query with single and multi lines : {end-start}\n")
 
         return {'translatedText' : hypotheses}
-
