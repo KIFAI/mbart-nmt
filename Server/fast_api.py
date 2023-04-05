@@ -5,10 +5,13 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 import time
 
 from typing import List, Union
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from io import BytesIO
 from pydantic import BaseModel
 from Translate.inference import Translator
+from Translate.docx_translator import trans_with_preserving_form
 
 par_dir = os.path.dirname(os.path.abspath('./'))
 model_path = os.path.join(par_dir, 'FastModel/Ctrans-MBart/ctrans_fp16')
@@ -128,3 +131,28 @@ async def translate(item: Item):
         print(f"\nElapsed time for translating query with single and multi lines : {end-start}\n")
 
         return {'translatedText' : hypotheses}
+
+@app.post("/translate_docx")
+async def translate_docx(docx_data:UploadFile, dest_lang:str):
+    '''
+    translate docx with preserving original docx
+    Args:
+        docx_data : only support microsoft word.docx
+        dest_lang : target language that only support korean, english
+    Returns:
+        transformed_docx : translated docx with preserving origin docx
+    '''
+    docx_data = await docx_data.read()
+    docx_data = trans_with_preserving_form(uploaded_file=docx_data, translator=translator, dest_lang=dest_lang)
+
+    # Create an in-memory file object
+    file_obj = BytesIO()
+
+    # Save the document to the in-memory file object
+    docx_data.save(file_obj)
+
+    # Reset the file object's position to the beginning
+    file_obj.seek(0)
+
+    # Return the file as a streamable response
+    return StreamingResponse(file_obj, media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document', headers={'Content-Disposition': 'attachment; filename="document.docx"'})
