@@ -21,8 +21,11 @@ def transform_paragraphs(paragraphs, translator, dest_lang):
         if texts != []:
             for i, run in enumerate(paragraph.runs):
                 if i == 0:
-                    translated = translator.generate([' '.join(texts)], src_lang=src_lang, tgt_lang=tgt_lang)
-                    run.text = '\n'.join([s['translated'] for s in translated])
+                    if run.text == '':
+                        continue
+                    else:
+                        translated = translator.generate([' '.join(texts)], src_lang=src_lang, tgt_lang=tgt_lang)
+                        run.text = '\n'.join([s['translated'] for s in translated])
                 else:
                     run.clear()
         else:
