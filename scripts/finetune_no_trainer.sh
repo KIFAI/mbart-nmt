@@ -33,6 +33,7 @@ accelerate launch --main_process_port ${MAIN_PORT} ${BASE_PATH}/finetune_mbart50
     --ds_config_path ${BASE_PATH}${DEEPSPEED_CONFIG_PATH} \
     --tokenizer_path ${BASE_PATH}${TOKENIZER_PATH} \
     --corpus_path ${BASE_PATH}${CORPUS_PATH} \
+    --hf_dataset_abs_path ${BASE_PATH}${HF_DATASET_ABS_PATH} \
     --plm_path ${BASE_PATH}${PLM_PATH} \
     --processor_batch_size ${PROCESSOR_BATCH_SIZE} \
     --num_proc ${NUM_PROC} \
