@@ -1,10 +1,10 @@
 MAIN_PORT=29050
-BASE_PATH=/opt/project/translation/repo/mbart-nmt
+BASE_PATH=/opt/project/mbart-nmt
 DEEPSPEED_CONFIG_PATH=/ds_config/zero_stage2_config.json
-TOKENIZER_PATH=/src/plm/reduced_hf_mbart50_m2m_v2
-CORPUS_PATH=/src/train_corpus/cased_corpus_exp_v2
+TOKENIZER_PATH=/src/plm/cased_mbart50-bidirectional_finetuned_en_XX-ko_KR
+CORPUS_PATH=/src/train_corpus/cased_corpus
 HF_DATASET_ABS_PATH=/src/hf_dataset/custom_dataset
-PLM_PATH=/src/plm/reduced_hf_mbart50_m2m_v2
+PLM_PATH=/src/plm/cased_mbart50-bidirectional_finetuned_en_XX-ko_KR
 PROCESSOR_BATCH_SIZE=20000
 NUM_PROC=8
 MAX_TOKEN_LENGTH=512
@@ -22,7 +22,7 @@ LEARNING_RATE=5e-5
 WEIGHT_DECAY=0.01
 NUM_WARMUP_STEPS=0
 GRADIENT_ACCUMULATION_STEPS=2
-NUM_EPOCHS=2
+NUM_EPOCHS=1
 EVAL_CHECK_INTERVAL=0.25
 LABEL_SMOOTHING=0.0
 EARLY_STOP_METRIC=sacrebleu
@@ -62,4 +62,4 @@ accelerate launch --main_process_port ${MAIN_PORT} ${BASE_PATH}/finetune_mbart50
     --label_smoothing ${LABEL_SMOOTHING} \
     --ignore_tokens_ixs_for_loss \
     --early_stop_metric ${EARLY_STOP_METRIC} \
-    --patience ${PATIENCE} \
+    --patience ${PATIENCE}
