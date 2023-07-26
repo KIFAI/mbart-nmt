@@ -555,14 +555,14 @@ def training_functions(args):
                             best_score = cur_score
                             cur_patience = 0
                             logger.info(
-                                f"valid/{args.early_stop_metric} reached {cur_score*100:.2f}%, saving model to {os.path.join(args.output_dir, args.exp_name)}"
+                                f"valid/{args.early_stop_metric} reached {cur_score:.2f}%, saving model to {os.path.join(args.output_dir, args.exp_name)}"
                             )
                             # Save best model
                             save_model(accelerator, args, model, tokenizer)
                         else:
                             cur_patience += 1
                             logger.info(
-                                f"valid/{args.early_stop_metric} was not in top 1 (best score: {best_score*100:.2f}% / cur patience: {cur_patience})"
+                                f"valid/{args.early_stop_metric} was not in top 1 (best score: {best_score:.2f}% / cur patience: {cur_patience})"
                             )
 
                 if cur_patience >= args.patience:

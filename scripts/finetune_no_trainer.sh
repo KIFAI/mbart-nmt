@@ -1,17 +1,17 @@
 MAIN_PORT=29050
-BASE_PATH=/opt/project/mbart-nmt
+BASE_PATH=/home/jihyo/repo/mbart-nmt
 DEEPSPEED_CONFIG_PATH=/ds_config/zero_stage2_config.json
-TOKENIZER_PATH=/src/plm/cased_mbart50-bidirectional_finetuned_en_XX-ko_KR
-CORPUS_PATH=/src/train_corpus/cased_corpus
-HF_DATASET_ABS_PATH=/src/hf_dataset/custom_dataset
-PLM_PATH=/src/plm/cased_mbart50-bidirectional_finetuned_en_XX-ko_KR
+TOKENIZER_PATH=/src/plm/reduced_hf_mbart50_m2m
+CORPUS_PATH=/src/train_corpus/cased_corpus_exp
+HF_DATASET_ABS_PATH=/src/hf_dataset/exp_dataset
+PLM_PATH=/src/plm/reduced_hf_mbart50_m2m
 PROCESSOR_BATCH_SIZE=20000
 NUM_PROC=8
 MAX_TOKEN_LENGTH=512
 BATCH_SIZE=18
 MIXED_PRECISION=fp16
 OUTPUT_DIR=output
-EXP_NAME=mbart02_enko_exp_large_deepspeed
+EXP_NAME=mbart02_enko_large_deepspeed_exp
 SRC=en_XX
 TGT=ko_KR
 PACKING_SIZE=512
@@ -22,11 +22,11 @@ LEARNING_RATE=5e-5
 WEIGHT_DECAY=0.01
 NUM_WARMUP_STEPS=0
 GRADIENT_ACCUMULATION_STEPS=2
-NUM_EPOCHS=1
+NUM_EPOCHS=3
 EVAL_CHECK_INTERVAL=0.25
 LABEL_SMOOTHING=0.0
 EARLY_STOP_METRIC=sacrebleu
-PATIENCE=5
+PATIENCE=6
 
 accelerate launch --main_process_port ${MAIN_PORT} ${BASE_PATH}/finetune_mbart50_no_trainer.py \
     --base_path ${BASE_PATH} \
