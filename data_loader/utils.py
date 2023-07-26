@@ -52,11 +52,15 @@ def get_merge_data(src_data, src_lens, tgt_data, tgt_lens, merge_direction="bidi
             lens = [max(item) for item in zip(src_lens, tgt_lens)]
             merge_list, over_cnt = merge_data_by_limit(lens, limit=max_token_length)
             for item in merge_list:
-                merge_src = [src_data[i] for i in item]
-                merge_tgt = [tgt_data[i] for i in item]
-                merge_token_num_src = sum(src_lens[i] for i in item)
-                merge_token_num_tgt = sum(tgt_lens[i] for i in item)
-                
+                merge_src = list()
+                merge_tgt = list()
+                merge_token_num_src = 0
+                merge_token_num_tgt = 0
+                for i in item:
+                    merge_src.append(src_data[i])
+                    merge_tgt.append(tgt_data[i])
+                    merge_token_num_src += src_lens[i]
+                    merge_token_num_tgt += tgt_lens[i]
                 packed_src.append(merge_src)
                 packed_tgt.append(merge_tgt)
                 packed_len.append([merge_token_num_src, merge_token_num_tgt])
@@ -83,10 +87,9 @@ def get_merge_data(src_data, src_lens, tgt_data, tgt_lens, merge_direction="bidi
                     src_len += src_token_num
                     tgt_len += tgt_token_num
                     trigger += sent_len
-    
+            print("uni", len(packed_src))
     else:
         raise ValueError(f"Check merge direction type : {merge_direction}")
-
     return packed_src, packed_tgt, packed_len
 
 
@@ -117,7 +120,7 @@ def packing_data(tokenizer, df, group_key, src_key, tgt_key, batch_size=256, max
             src_datas.append(group[1][src_key].to_list())
             tgt_datas.append(group[1][tgt_key].to_list())
         end = pc()
-        for sd, td in zip(tqdm(src_datas, total=len(src_datas), desc="Packing data.."), tgt_datas):
+        for sd, td in zip(src_datas, tgt_datas):
             sd, sl = __get_token_length(tokenizer=tokenizer, text_data=sd, batch_size=batch_size)
             src_data.extend(sd)
             src_lens.extend(sl)

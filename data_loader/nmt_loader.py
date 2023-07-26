@@ -27,10 +27,8 @@ class NmtDataLoader:
         Load splited src&tgt lang's corpus into huggingface dataset format
         """
         category_data = []
-     
         corpus = pd.read_csv(corpus_path, sep="\t")
         print(corpus.head())
-
         src_data, tgt_data = corpus[self.src_lang], corpus[self.tgt_lang]
 
         if packing and (packing_size is not None):
@@ -83,12 +81,16 @@ class NmtDataLoader:
             print("No packing..")
             src_data, tgt_data = corpus[self.src_lang], corpus[self.tgt_lang]
 
-        category_data = {
-                f"{self.src_lang}" : [src_line.rstrip("\n") for src_line in src_data],
-                f"{self.tgt_lang}" : [tgt_line.rstrip("\n") for tgt_line in tgt_data]
-            }
-
-        return Dataset.from_dict(category_data)
+        for i, lines in enumerate(tqdm(zip(src_data, tgt_data), total=len(src_data))):
+            category_data.append(
+                {
+                    "translation": {
+                        f"{self.src_lang}": lines[0].rstrip("\n"),
+                        f"{self.tgt_lang}": lines[1].rstrip("\n"),
+                    }
+                }
+            )
+        return Dataset.from_pandas(pd.DataFrame(category_data))
 
     def get_tokenized_dataset(self, batch_size=20000, num_proc=8):
         self.tokenized_datasets = self.raw_datasets.map(
@@ -126,8 +128,8 @@ class Processor:
         mbart_tokenizer.src_lang = src_lang
         mbart_tokenizer.tgt_lang = tgt_lang
 
-        inputs, targets = examples[src_lang], examples[tgt_lang]
-        
+        inputs = [ex[src_lang] for ex in examples["translation"]]
+        targets = [ex[tgt_lang] for ex in examples["translation"]]
         if drop_case:
             model_inputs = mbart_tokenizer(inputs)
 

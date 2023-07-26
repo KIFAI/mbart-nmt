@@ -495,7 +495,7 @@ def training_functions(args):
                         model.eval()
                         samples_seen = 0
                         for valid_step, batch in enumerate(eval_dataloader):
-                            generated_tokens_list = []
+                            generated_tokens_list, filtered_labels_list = [], []
                             for src_lang, tgt_lang in zip(["ko_KR", "en_XX"], ["en_XX", "ko_KR"]):
                                 filtered_idxs = np.where(batch["input_ids"].cpu().numpy()[:,0]==tokenizer.lang_code_to_id[src_lang])
                                 if batch["input_ids"][filtered_idxs].size()[0] != 0:
@@ -504,14 +504,16 @@ def training_functions(args):
                                                                                        attention_mask=batch["attention_mask"][filtered_idxs],
                                                                                        forced_bos_token_id=tokenizer.lang_code_to_id[tgt_lang])
                                         generated_tokens_list.append(torch.nn.functional.pad(preds, pad=(0, batch["input_ids"].size()[-1]-preds.shape[-1], 0, 0), mode='constant', value=tokenizer.pad_token_id))
+                                        filtered_labels_list.append(batch["labels"][filtered_idxs])
                             
-                            generated_tokens = torch.cat(generated_tokens_list, dim=0)
+                            generated_tokens, label_tokens = torch.cat(generated_tokens_list, dim=0), torch.cat(filtered_labels_list, dim=0)
+                            
                             generated_tokens = accelerator.gather(generated_tokens).cpu().numpy()
-                            labels = accelerator.pad_across_processes(batch["labels"], dim=1, pad_index=-100)
+                            labels = accelerator.pad_across_processes(label_tokens, dim=1, pad_index=-100)
                             labels = accelerator.gather(labels).cpu().numpy()
-                            
+
                             decoded_preds, decoded_labels = postprocess_text(generated_tokens, labels, tokenizer)
-                            
+
                             # First we check if it's a distributed system
                             if accelerator.use_distributed:
                                 # Then see if we're on the last batch of our eval dataloader
