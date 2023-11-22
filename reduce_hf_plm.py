@@ -8,8 +8,30 @@ from collections import Counter
 from sentencepiece import sentencepiece_model_pb2
 from transformers import MBartConfig, MBartForConditionalGeneration, MBart50TokenizerFast
 
+LANGS = ["ar_AR", "cs_CZ", "de_DE", "en_XX", "es_XX", "et_EE", "fi_FI", "fr_XX", "gu_IN", "hi_IN", "it_IT", "ja_XX", "kk_KZ", "ko_KR", "lt_LT", "lv_LV", "my_MM", "ne_NP", "nl_XX", "ro_RO", "ru_RU", "si_LK", "tr_TR", "vi_VN", "zh_CN", "af_ZA", "az_AZ", "bn_IN", "fa_IR", "he_IL", "hr_HR", "id_ID", "ka_GE", "km_KH", "mk_MK", "ml_IN", "mn_MN", "mr_IN", "pl_PL", "ps_AF", "pt_XX", "sv_SE", "sw_KE", "ta_IN", "te_IN", "th_TH", "tl_XX", "uk_UA", "ur_PK", "xh_ZA", "gl_ES", "sl_SI"]
+
+CONTROL_CHRS = ['\n', '\r', '\t']
+
+BT_TAGS = ['<bt>']
+
+SPECIAL_TOKENS_MAP = {
+    "additional_special_tokens": LANGS + CONTROL_CHRS + BT_TAGS,
+    "bos_token": "<s>",
+    "cls_token": "<s>",
+    "eos_token": "</s>",
+    "mask_token": "<mask>",
+    "pad_token": "<pad>",
+    "sep_token": "</s>",
+    "unk_token": "<unk>"
+    }
+
 def define_argparser():
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--base_path",
+        default='/opt/project/mbart-nmt',
+        type=str,
+    )
     parser.add_argument(
         "--plm_name",
         default='facebook/mbart-large-50-many-to-many-mmt',
@@ -41,7 +63,7 @@ def prepare_huggingface_plm(plm_name="facebook/mbart-large-50-many-to-many-mmt",
     pre_tokenizer = MBart50TokenizerFast.from_pretrained(plm_name)
     pre_tokenizer.save_pretrained(save_path)
     pre_config = MBartConfig.from_pretrained(plm_name)
-    
+
     return pre_config, pre_tokenizer, pre_model
 
 def expand_spm(spm, type_dict={"NORMAL":1, "UNKNOWN":2, "CONTROL":3}, addition_dict={"CONTROL":[("<bt>", 0.0)]}):
@@ -84,14 +106,15 @@ def filter_vocab(multilingual_vocab, regex_pattern):
     return tmp_vocab
 
 def extract_spm_vocab(spm, regex_patterns):
-    vocab = ['<unk>','<s>','</s>', '<bt>']
+    vocab = ['<unk>','<s>','</s>'] + CONTROL_CHRS + BT_TAGS
 
     for r_p in regex_patterns:
         vocab += filter_vocab(multilingual_vocab=[p.piece for p in spm.pieces],
                                 regex_pattern=r_p)
 
-    filtered_lang_dict = {w.strip():i for i, w in enumerate(set(vocab))}
-    
+    filtered_lang_dict = {w.strip() if w.strip() != "" else w:i for i, w in enumerate(set(vocab))}
+    print(f" len of vocab : {len(set(vocab))}, len of filtered dict : {len(filtered_lang_dict)}")
+
     return filtered_lang_dict
 
 def reduce_spm(m, filtered_lang_dict):
@@ -105,7 +128,7 @@ def reduce_spm(m, filtered_lang_dict):
             rm_ix2word[i] = word
             rm_word2id[word] = i
     print(f"Total num of filtered vocab : {len(m.pieces) - len(rm_ix2word)}")
-    
+
     for i in tqdm(reversed(list(rm_ix2word.keys())), total=len(rm_ix2word), desc="Remove unnecessary token.."):
         assert m.pieces[i].piece == rm_ix2word[i]
         # print(i, m.pieces[i].piece, rm_ix2word[i])
@@ -131,13 +154,11 @@ def load_dict(pre_tokenizer, new_spm):
     new_dict = {}
 
     reduced_pieces = [p.piece for p in new_spm.pieces]
-    langs = ["ar_AR", "cs_CZ", "de_DE", "en_XX", "es_XX", "et_EE", "fi_FI", "fr_XX", "gu_IN", "hi_IN", "it_IT", "ja_XX", "kk_KZ", "ko_KR", "lt_LT", "lv_LV", "my_MM", "ne_NP", "nl_XX", "ro_RO", "ru_RU", "si_LK", "tr_TR", "vi_VN", "zh_CN", "af_ZA", "az_AZ", "bn_IN", "fa_IR", "he_IL", "hr_HR", "id_ID", "ka_GE", "km_KH", "mk_MK", "ml_IN", "mn_MN", "mr_IN", "pl_PL", "ps_AF", "pt_XX", "sv_SE", "sw_KE", "ta_IN", "te_IN", "th_TH", "tl_XX", "uk_UA", "ur_PK", "xh_ZA", "gl_ES", "sl_SI"]
-    symbols = ['<mask>', '<pad>', '<bt>']
 
     initialized_vocab_num = 0
     common_vocab_num = 0
 
-    for token in list(set(reduced_pieces + symbols + langs)):
+    for token in list(set(reduced_pieces + [SPECIAL_TOKENS_MAP['mask_token']] + [SPECIAL_TOKENS_MAP['pad_token']] + LANGS + CONTROL_CHRS + BT_TAGS)):
         try:
             new_dict[token] = pre_dict[token]
             common_vocab_num += 1
@@ -154,9 +175,9 @@ def load_dict(pre_tokenizer, new_spm):
 
     return pre_dict, new_dict
 
-def reduce_plm(pre_config, pre_model, pre_dict, new_dict, 
+def reduce_plm(pre_config, pre_model, pre_dict, new_dict,
                plm_local_path = "tmp_ckpt", reduced_model_path='reduced_mbart50'):
-    
+
     org_sd = pre_model.state_dict()
     resized_sd = pre_model.state_dict()
 
@@ -190,20 +211,21 @@ def reduce_plm(pre_config, pre_model, pre_dict, new_dict,
     print(new_config)
 
 
-    shutil.copy(f'./{plm_local_path}/sentencepiece.bpe.model.new',
+    shutil.copy(f'{plm_local_path}/sentencepiece.bpe.model.new',
                 f'{plm_local_path}/sentencepiece.bpe.model')
     os.remove(f'{plm_local_path}/tokenizer.json')
 
     new_tokenizer = MBart50TokenizerFast.from_pretrained(plm_local_path)
-    
+
     print(f"New model's vocab size : {new_config.vocab_size}, New tokenizer's vocab size : {new_tokenizer.vocab_size}")
     assert new_config.vocab_size == new_tokenizer.vocab_size
-    
+
+    new_tokenizer.add_special_tokens({"additional_special_tokens" : LANGS + CONTROL_CHRS + BT_TAGS})
     new_tokenizer.save_pretrained(reduced_model_path)
-    
+
     print(f"New tokenizer's vocab size : {new_tokenizer.vocab_size}")
     assert len(new_dict) == new_tokenizer.vocab_size
-        
+
     shutil.rmtree(plm_local_path)
 
 def test_uni_trans(reduction_path):
@@ -231,12 +253,12 @@ def test_uni_trans(reduction_path):
     assert new_tokenizer.decode(new_tokenizer(sample).input_ids, skip_special_tokens=True) == ''.join(new_tokenizer.tokenize(sample)).replace('▁', ' ').strip()
 
 def main(args):
-    pre_config, pre_tokenizer, pre_model = prepare_huggingface_plm(plm_name=args.plm_name, 
+    pre_config, pre_tokenizer, pre_model = prepare_huggingface_plm(plm_name=args.plm_name,
                                                        save_path=args.plm_local_path)
     pre_spm = sentencepiece_model_pb2.ModelProto()
-    
+
     if args.use_pretrained_spm:
-        pre_spm.ParseFromString(open("./src/sentencepiece/spiece.model", 'rb').read())
+        pre_spm.ParseFromString(open(os.path.join(args.base_path, "src/sentencepiece/spiece.model"), 'rb').read())
         regex_patterns = [{'all':re.compile(r'.*')}]
     else:
         '''
@@ -253,8 +275,9 @@ def main(args):
             {'en':re.compile(r'▁?[a-zA-Z]+')},
             #{'hanja':re.compile("▁?[\u2e80-\u2eff\u31c0-\u31ef\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fbf\uf900-\ufaff]+")}
         ]
-    
-    pre_spm = expand_spm(spm=pre_spm, type_dict={"NORMAL":1, "UNKNOWN":2, "CONTROL":3}, addition_dict={"CONTROL":[("<bt>", 0.0)]})
+
+    pre_spm = expand_spm(spm=pre_spm, type_dict={"NORMAL":1, "UNKNOWN":2, "CONTROL":3}, 
+                        addition_dict={"CONTROL": [(el,0.0) for el in CONTROL_CHRS+BT_TAGS]})
     filtered_lang_dict = extract_spm_vocab(spm=pre_spm, regex_patterns=regex_patterns)
     new_spm = reduce_spm(pre_spm, filtered_lang_dict)
 
