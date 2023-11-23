@@ -49,8 +49,13 @@ def define_argparser():
     )
     parser.add_argument(
         "--reduction_path",
-        default='./src/plm/reduced_hf_mbart50_m2m_v3',
+        default='./src/plm/reduced_hf_mbart50_m2m_v2',
         type=str,
+    )
+    parser.add_argument(
+        "--max_length",
+        default=512,
+        type=int,
     )
 
     args = parser.parse_args()
@@ -206,6 +211,9 @@ def reduce_plm(pre_config, pre_model, pre_dict, new_dict,
         print('make reduction path..\n')
         os.mkdir(reduced_model_path)
 
+    new_model.config._name_or_path = args.reduction_path
+    new_model.config.max_length = args.max_length
+
     new_model.save_pretrained(reduced_model_path)
     new_config = MBartConfig.from_pretrained(reduced_model_path)
     print(new_config)
@@ -222,6 +230,16 @@ def reduce_plm(pre_config, pre_model, pre_dict, new_dict,
 
     new_tokenizer.add_special_tokens({"additional_special_tokens" : LANGS + CONTROL_CHRS + BT_TAGS})
     new_tokenizer.save_pretrained(reduced_model_path)
+
+    import json
+    with open(os.path.join(reduced_model_path, 'tokenizer_config.json'), 'r') as f:
+        tokenizer_config = json.load(f)
+    tokenizer_config['additional_special_tokens'] = new_tokenizer.additional_special_tokens
+    tokenizer_config['name_or_path'] = reduced_model_path
+    tokenizer_config['special_tokens_map_file'] = os.path.join(reduced_model_path, 'special_tokens_map.json')
+
+    with open(os.path.join(reduced_model_path, 'tokenizer_config.json'), 'w') as f:
+        json.dump(tokenizer_config, f, ensure_ascii=False, indent=2)
 
     print(f"New tokenizer's vocab size : {new_tokenizer.vocab_size}")
     assert len(new_dict) == new_tokenizer.vocab_size
