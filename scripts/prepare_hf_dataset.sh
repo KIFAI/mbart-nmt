@@ -1,8 +1,8 @@
-BASE_PATH=/home/jihyo/repo/mbart-nmt
+BASE_PATH=/opt/project/mbart-nmt
 TOKENIZER_PATH=/src/plm/reduced_hf_mbart50_m2m
 CORPUS_PATH=/src/train_corpus/cased_corpus_exp
 HF_DATASET_PATH=./src/hf_dataset
-HF_DATASET_NAME=exp_dataset
+HF_DATASET_NAME=dataset_exp
 NUM_PROC=8
 MAX_TOKEN_LENGTH=512
 BATCH_SIZE=50000
