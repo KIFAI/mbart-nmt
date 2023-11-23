@@ -271,7 +271,7 @@ def get_dataloaders(accelerator: Accelerator, model, tokenizer, args):
             print(f"Loading custom dataset of hf format from disk in {args.hf_dataset_abs_path}")
             segment_datasets = load_from_disk(args.hf_dataset_abs_path)
     
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding='max_length', max_length=512)
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding='max_length', max_length=args.max_token_length)
 
     g = torch.Generator()
     g.manual_seed(args.trainer_seed)
@@ -291,12 +291,6 @@ def training_functions(args):
         with open(args.ds_config_path, "r") as f:
             ds_config = json.load(f)
 
-        if args.mixed_precision == 'bf16' and (args.mixed_precision not in ds_config.keys()):
-            try:
-                del ds_config['fp16']
-            except Exception as ex:
-                print(ex)
-            ds_config.update({args.mixed_precision: {'enabled': True}})
         deepspeed_plugin = DeepSpeedPlugin(hf_ds_config=ds_config)
 
         if int(os.environ.get('LOCAL_RANK', -1)) == 0:
@@ -308,8 +302,17 @@ def training_functions(args):
         if int(os.environ.get('LOCAL_RANK', -1)) == 0:
             logger.info(f"Using user defined arguments about optimizer, scheduler, etc...\n")
     
-    accelerator = Accelerator(mixed_precision=args.mixed_precision, gradient_accumulation_steps=args.gradient_accumulation_steps, cpu=False, deepspeed_plugin=deepspeed_plugin,
+    accelerator = Accelerator(mixed_precision=args.mixed_precision, gradient_accumulation_steps=args.gradient_accumulation_steps, cpu=False,
+                            deepspeed_plugin=deepspeed_plugin,
                             log_with="tensorboard", logging_dir=os.path.join(args.output_dir, args.exp_name), kwargs_handlers=[ipg_handler])
+
+    if accelerator.state.mixed_precision == 'bf16':
+        raise ValueError("bf16 mixed precision in deepspeed raises OVERFLOW ISSUE")
+    else:
+        if accelerator.state.deepspeed_plugin is not None:
+            if 'bf16' in accelerator.state.deepspeed_plugin.deepspeed_config.keys():
+                raise ValueError("bf16 mixed precision in deepspeed raises OVERFLOW ISSUE")
+
     accelerator.free_memory()
     logger.info("\n" + repr(accelerator.state) + "\n")
     
@@ -450,7 +453,7 @@ def training_functions(args):
     logger.info(f"  Num Epochs = {args.num_epochs}")
     logger.info(f"  Instantaneous batch size per device = {args.batch_size}")
     logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
-    logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
+    logger.info(f"  Gradient Accumulation steps = {accelerator.gradient_accumulation_steps}")
     logger.info(f"  Total optimization steps = {total_training_steps}")
 
     completed_steps = 0
