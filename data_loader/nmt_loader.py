@@ -54,8 +54,8 @@ class NmtDataLoader:
 
                 src_data = [s.strip() for s in src_data]
                 tgt_data = [s.strip() for s in tgt_data]
-                src_data.extend([" ".join(sents) for sents in packed_src_data])
-                tgt_data.extend([" ".join(sents) for sents in packed_tgt_data])
+                src_data.extend(["\n".join(sents) for sents in packed_src_data])
+                tgt_data.extend(["\n".join(sents) for sents in packed_tgt_data])
                 
                 random.seed(10)
                 ixs = list(range(len(src_data)))
@@ -76,7 +76,7 @@ class NmtDataLoader:
 
             else:
                 print("Prepare train data using only segments unit")
-                src_data, tgt_data = [" ".join(sents) for sents in packed_src], [" ".join(sents) for sents in packed_tgt]
+                src_data, tgt_data = ["\n".join(sents) for sents in packed_src], ["\n".join(sents) for sents in packed_tgt]
         else:
             print("No packing..")
             src_data, tgt_data = corpus[self.src_lang], corpus[self.tgt_lang]

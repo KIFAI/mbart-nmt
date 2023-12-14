@@ -16,7 +16,7 @@ from data_loader.nmt_loader import NmtDataLoader, Processor
 
 from torch.utils.data import DataLoader
 from accelerate import Accelerator, DistributedType, DeepSpeedPlugin
-from accelerate.utils import InitProcessGroupKwargs, DummyOptim, DummyScheduler
+from accelerate.utils import InitProcessGroupKwargs, DummyOptim, DummyScheduler, ProjectConfiguration
 
 from transformers.optimization import AdamW
 from transformers.models.mbart.configuration_mbart import MBartConfig
@@ -302,16 +302,21 @@ def training_functions(args):
         if int(os.environ.get('LOCAL_RANK', -1)) == 0:
             logger.info(f"Using user defined arguments about optimizer, scheduler, etc...\n")
     
+    project_config = ProjectConfiguration(project_dir=".", logging_dir=os.path.join(args.output_dir, args.exp_name))
+
     accelerator = Accelerator(mixed_precision=args.mixed_precision, gradient_accumulation_steps=args.gradient_accumulation_steps, cpu=False,
-                            deepspeed_plugin=deepspeed_plugin,
-                            log_with="tensorboard", logging_dir=os.path.join(args.output_dir, args.exp_name), kwargs_handlers=[ipg_handler])
+                            deepspeed_plugin=deepspeed_plugin, log_with="tensorboard",
+                            #logging_dir=os.path.join(args.output_dir, args.exp_name),
+                            project_config=project_config, 
+                            kwargs_handlers=[ipg_handler])
 
     if accelerator.state.mixed_precision == 'bf16':
         raise ValueError("bf16 mixed precision in deepspeed raises OVERFLOW ISSUE")
     else:
         if accelerator.state.deepspeed_plugin is not None:
             if 'bf16' in accelerator.state.deepspeed_plugin.deepspeed_config.keys():
-                raise ValueError("bf16 mixed precision in deepspeed raises OVERFLOW ISSUE")
+                if accelerator.state.deepspeed_plugin.deepspeed_config['bf16']['enabled']:
+                    raise ValueError("bf16 mixed precision in deepspeed raises OVERFLOW ISSUE")
 
     accelerator.free_memory()
     logger.info("\n" + repr(accelerator.state) + "\n")
