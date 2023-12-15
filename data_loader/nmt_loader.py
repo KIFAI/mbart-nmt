@@ -66,7 +66,7 @@ class NmtDataLoader:
                 print("total len : ", len(src_data))
 
                 # 테스트 코드
-                sample = random.sample(range(len(src_data)), 15)
+                sample = random.sample(range(len(src_data)), 5)
                 print(sample)
                 for i in sample:
                     print("*" * 100)
@@ -81,16 +81,16 @@ class NmtDataLoader:
             print("No packing..")
             src_data, tgt_data = corpus[self.src_lang], corpus[self.tgt_lang]
 
-        for i, lines in enumerate(tqdm(zip(src_data, tgt_data), total=len(src_data))):
-            category_data.append(
-                {
-                    "translation": {
-                        f"{self.src_lang}": lines[0].rstrip("\n"),
-                        f"{self.tgt_lang}": lines[1].rstrip("\n"),
-                    }
+        category_data = {
+                "translation": [
+                                    {
+                                        f"{self.src_lang}": src.rstrip("\n"),
+                                        f"{self.tgt_lang}": tgt.rstrip("\n"),
+                                    }
+                                        for src, tgt in tqdm(zip(src_data, tgt_data), total=len(src_data))
+                                ]
                 }
-            )
-        return Dataset.from_pandas(pd.DataFrame(category_data))
+        return Dataset.from_dict(category_data)
 
     def get_tokenized_dataset(self, batch_size=20000, num_proc=8):
         self.tokenized_datasets = self.raw_datasets.map(
