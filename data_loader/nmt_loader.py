@@ -38,18 +38,14 @@ class NmtDataLoader:
             )
             
             if hybrid:
-                print("Prepare train data using sents & segments unit")
-                time_num_ceil = math.ceil(time_num)
+                print("Hybrid option : Prepare train data using sents & segments unit")
+                # prepare segments unit from packed data
                 packed_src_data, packed_tgt_data = [], []
-                for i in range(time_num_ceil):
-                    packed_src_data.extend(shuffle_packed_data(i, packed_src))
-                    packed_tgt_data.extend(shuffle_packed_data(i, packed_tgt))
-                # src, tgt 맞는지 확인 필
-                # 데이터를 증강 후 전체 src 길이로 자름
+                packed_src_data.extend(shuffle_packed_data(seed=0, packed_data=packed_src))
+                packed_tgt_data.extend(shuffle_packed_data(seed=0, packed_data=packed_tgt))
+                
                 print("len(packed_src_data) :", len(packed_src_data))
                 print("len(packed_tgt_data) :", len(packed_tgt_data))
-                packed_src_data = packed_src_data[: len(src_data)]
-                packed_tgt_data = packed_tgt_data[: len(tgt_data)]
                 print("src_data len :", len(src_data))
 
                 src_data = [s.strip() for s in src_data]
@@ -65,8 +61,8 @@ class NmtDataLoader:
 
                 print("total len : ", len(src_data))
 
-                # 테스트 코드
-                sample = random.sample(range(len(src_data)), 5)
+                # check the pair data
+                sample = random.sample(range(len(src_data)), 2)
                 print(sample)
                 for i in sample:
                     print("*" * 100)
@@ -75,10 +71,10 @@ class NmtDataLoader:
                     print(tgt_data[i])
 
             else:
-                print("Prepare train data using only segments unit")
+                print("Prepare train data using only segments pairs(not use sentence pairs")
                 src_data, tgt_data = ["\n".join(sents) for sents in packed_src], ["\n".join(sents) for sents in packed_tgt]
         else:
-            print("No packing..")
+            print("Not use to packed(segments) data..Only use sentence pairs")
             src_data, tgt_data = corpus[self.src_lang], corpus[self.tgt_lang]
 
         category_data = {
