@@ -80,7 +80,7 @@ def define_argparser():
     )
     parser.add_argument(
         "--mixed_precision",
-        default="fp16",
+        default="bf16",
         type=str,
         help="Whether or not to use mixed precision training (fp16 or bfloat16). Choose from ‘no’,‘fp16’,‘bf16’."
     )
@@ -92,16 +92,6 @@ def define_argparser():
     parser.add_argument(
         "--exp_name",
         default='mbart02_enko',
-        type=str,
-    )
-    parser.add_argument(
-        "--src_lang",
-        default="en_XX",
-        type=str
-    )
-    parser.add_argument(
-        "--tgt_lang",
-        default="ko_KR",
         type=str,
     )
     parser.add_argument(
@@ -263,7 +253,7 @@ def get_dataloaders(accelerator: Accelerator, model, tokenizer, args):
     """
     with accelerator.main_process_first():
         if not args.use_preset:
-            preprocessor = Processor(tokenizer, args.src_lang, args.tgt_lang, args.max_token_length, args.drop_case, args.bi_direction)
+            preprocessor = Processor(tokenizer, args.max_token_length, args.drop_case, args.bi_direction)
             preparator = NmtDataLoader(tokenizer, preprocessor, args.corpus_path, args.packing_data, args.packing_size, args.hybrid)
             segment_datasets = preparator.get_tokenized_dataset(batch_size=args.processor_batch_size, num_proc=args.num_proc)
         else:
@@ -306,17 +296,16 @@ def training_functions(args):
 
     accelerator = Accelerator(mixed_precision=args.mixed_precision, gradient_accumulation_steps=args.gradient_accumulation_steps, cpu=False,
                             deepspeed_plugin=deepspeed_plugin, log_with="tensorboard",
-                            #logging_dir=os.path.join(args.output_dir, args.exp_name),
                             project_config=project_config, 
                             kwargs_handlers=[ipg_handler])
 
-    if accelerator.state.mixed_precision == 'bf16':
-        raise ValueError("bf16 mixed precision in deepspeed raises OVERFLOW ISSUE")
+    if accelerator.state.mixed_precision == 'fp16':
+        logger.info("fp16 mixed precision in deepspeed raises OVERFLOW ISSUE")
     else:
         if accelerator.state.deepspeed_plugin is not None:
-            if 'bf16' in accelerator.state.deepspeed_plugin.deepspeed_config.keys():
-                if accelerator.state.deepspeed_plugin.deepspeed_config['bf16']['enabled']:
-                    raise ValueError("bf16 mixed precision in deepspeed raises OVERFLOW ISSUE")
+            if 'fp16' in accelerator.state.deepspeed_plugin.deepspeed_config.keys():
+                if accelerator.state.deepspeed_plugin.deepspeed_config['fp16']['enabled']:
+                    logger.info("fp16 mixed precision in deepspeed raises OVERFLOW ISSUE")
 
     accelerator.free_memory()
     logger.info("\n" + repr(accelerator.state) + "\n")
@@ -502,15 +491,20 @@ def training_functions(args):
                     with TorchTraceMemAlloc() as tracemalloc:
                         model.eval()
                         samples_seen = 0
+                        
                         for valid_step, batch in enumerate(eval_dataloader):
+                            lang_pairs = []
+                            for src_lang_id, tgt_lang_id in zip(batch["input_ids"][:,0], batch["labels"][:,0]):
+                                lang_pairs.append((src_lang_id.item(), tgt_lang_id.item())) # cast 1-d tensor to int (tensor(59763, gpu="cuda:1") > 59763)
+
                             generated_tokens_list, filtered_labels_list = [], []
-                            for src_lang, tgt_lang in zip(["ko_KR", "en_XX"], ["en_XX", "ko_KR"]):
-                                filtered_idxs = np.where(batch["input_ids"].cpu().numpy()[:,0]==tokenizer.lang_code_to_id[src_lang])
+                            for lang_pair in list(set(lang_pairs)):
+                                filtered_idxs = np.where(batch["input_ids"].cpu().numpy()[:,0]==lang_pair[0])
                                 if batch["input_ids"][filtered_idxs].size()[0] != 0:
                                     with torch.no_grad():
                                         preds = accelerator.unwrap_model(model).generate(batch["input_ids"][filtered_idxs], 
                                                                                        attention_mask=batch["attention_mask"][filtered_idxs],
-                                                                                       forced_bos_token_id=tokenizer.lang_code_to_id[tgt_lang])
+                                                                                       forced_bos_token_id=lang_pair[-1])
                                         generated_tokens_list.append(torch.nn.functional.pad(preds, pad=(0, batch["input_ids"].size()[-1]-preds.shape[-1], 0, 0), mode='constant', value=tokenizer.pad_token_id))
                                         filtered_labels_list.append(batch["labels"][filtered_idxs])
                             
