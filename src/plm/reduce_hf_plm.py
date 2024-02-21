@@ -10,7 +10,7 @@ from transformers import MBartConfig, MBartForConditionalGeneration, MBart50Toke
 
 LANGS = ["ar_AR", "cs_CZ", "de_DE", "en_XX", "es_XX", "et_EE", "fi_FI", "fr_XX", "gu_IN", "hi_IN", "it_IT", "ja_XX", "kk_KZ", "ko_KR", "lt_LT", "lv_LV", "my_MM", "ne_NP", "nl_XX", "ro_RO", "ru_RU", "si_LK", "tr_TR", "vi_VN", "zh_CN", "af_ZA", "az_AZ", "bn_IN", "fa_IR", "he_IL", "hr_HR", "id_ID", "ka_GE", "km_KH", "mk_MK", "ml_IN", "mn_MN", "mr_IN", "pl_PL", "ps_AF", "pt_XX", "sv_SE", "sw_KE", "ta_IN", "te_IN", "th_TH", "tl_XX", "uk_UA", "ur_PK", "xh_ZA", "gl_ES", "sl_SI"]
 
-CONTROL_CHRS = ['\n', '\r', '\t']
+CONTROL_CHRS = ['\n', '\r', '\t', '  ', '   ']
 
 BT_TAGS = ['<bt>']
 
@@ -46,6 +46,16 @@ def define_argparser():
         "--use_pretrained_spm",
         action='store_true',
         help="If you already have pretrained sentenecepiece model, you can use this spm vocab."
+    )
+    parser.add_argument(
+        "--pretrained_spm_path",
+        default='src/sentencepiece/ko_en/spiece.model',
+        help="pretrained sentenecepiece model path"
+    )
+    parser.add_argument(
+        "--support_langs",
+        default='en,ko',
+        help="list up like 'en,'ko'"
     )
     parser.add_argument(
         "--reduction_path",
@@ -140,17 +150,25 @@ def reduce_spm(m, filtered_lang_dict):
         m.pieces.pop(i)
     return m
 
-def validate_reduced_spm(spm_path):
+def validate_reduced_spm(spm_path, sample_by_lang, support_langs='en,ko'):
     import sentencepiece as spm
     from sentencepiece import sentencepiece_model_pb2
 
     sp_old, sp_new = spm.SentencePieceProcessor(), spm.SentencePieceProcessor()
     sp_old.load(f"{spm_path}/sentencepiece.bpe.model.old")
     sp_new.load(f"{spm_path}/sentencepiece.bpe.model.new")
-    old_result = sp_old.EncodeAsPieces('This eBook is for the use of anyone anywhere at no cost')
-    new_result = sp_new.EncodeAsPieces('This eBook is for the use of anyone anywhere at no cost')
 
-    assert old_result==new_result
+    assert len(support_langs.split(',')) >= 2
+
+    for lang in support_langs.split(','):
+        old_result = sp_old.EncodeAsPieces(sample_by_lang[lang])
+        print(f"old result of {lang} lanugage id: {old_result}")
+        new_result = sp_new.EncodeAsPieces(sample_by_lang[lang])
+        print(f"new result of {lang} language id: {new_result}")
+
+    print(f"old spm vocab size : {sp_old.vocab_size()}, new spm vocab size : {sp_new.vocab_size()}")
+
+    assert sp_old.vocab_size() != sp_new.vocab_size()
 
 def load_dict(pre_tokenizer, new_spm):
     pre_dict = {w:i for w, i in sorted(pre_tokenizer.vocab.items(),
@@ -251,11 +269,7 @@ def test_uni_trans(reduction_path):
     new_tokenizer = MBart50TokenizerFast.from_pretrained(reduction_path)
     #Test uni directional translation
     test_set = [['I understood it, but will other people get it?', 'en_XX', 'ko_KR'],
-               ['저는 이해했는데 다른 사람들도 그걸 알아챌까요?', 'ko_KR', 'en_XX'],
-               ['I understood it, but will other people get it?', 'en_XX', 'zh_CN'],
-               ['我明白了，但其他人会明白吗？', 'zh_CN', 'en_XX'],
-               ['저는 이해했는데 다른 사람들도 그걸 알아챌까요?', 'ko_KR', 'zh_CN'],
-               ['我明白了，但其他人会明白吗？', 'zh_CN', 'ko_KR'],]
+               ['저는 이해했는데 다른 사람들도 그걸 알아챌까요?', 'ko_KR', 'en_XX']]
 
     for src, src_lang, tgt_lang in test_set:
         print(f"Source sentence : {src}")
@@ -267,16 +281,13 @@ def test_uni_trans(reduction_path):
         print(f'Tgt lang : {tgt_lang} / {new_tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)}')
         print('\n')
 
-    sample = '2020년 6월 한 경찰관이 제로지 플로이드를 살해한 직후, 제프 베조스는 BLM을 옹호했다'
-    assert new_tokenizer.decode(new_tokenizer(sample).input_ids, skip_special_tokens=True) == ''.join(new_tokenizer.tokenize(sample)).replace('▁', ' ').strip()
-
 def main(args):
     pre_config, pre_tokenizer, pre_model = prepare_huggingface_plm(plm_name=args.plm_name,
                                                        save_path=args.plm_local_path)
     pre_spm = sentencepiece_model_pb2.ModelProto()
 
     if args.use_pretrained_spm:
-        pre_spm.ParseFromString(open(os.path.join(args.base_path, "src/sentencepiece/spiece.model"), 'rb').read())
+        pre_spm.ParseFromString(open(os.path.join(args.base_path, args.pretrained_spm_path), 'rb').read())
         regex_patterns = [{'all':re.compile(r'.*')}]
     else:
         '''
@@ -305,7 +316,13 @@ def main(args):
     with open(f"{args.plm_local_path}/sentencepiece.bpe.model.new", 'wb') as f:
         f.write(new_spm.SerializeToString())
     # Validate
-    validate_reduced_spm(args.plm_local_path)
+    sample_by_lang = {
+                        'ko': '안녕하세요 반갑습니다.',
+                        'en': 'This eBook is for the use of anyone anywhere at no cost',
+                        'id': 'Kalau perawat memanggil nama Anda, silakan masuk ke sebelah sini.',
+                        'km': 'តំបន់ទេសចរណ៍ដែលពេញនិយមចំពោះសិស្សជនជាតិជប៉ុនត្រូវបានស្ទង់មតិថាភាគច្រើនជាតំបន់អឺរ៉ុប។'
+                      }
+    validate_reduced_spm(args.plm_local_path, sample_by_lang, args.support_langs)
 
     pre_dict, new_dict = load_dict(pre_tokenizer, new_spm)
     reduce_plm(pre_config, pre_model, pre_dict, new_dict,

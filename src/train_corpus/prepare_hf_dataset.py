@@ -1,13 +1,13 @@
-import os
+import os,sys
 import argparse
 import datasets
 import torch
 import transformers
 
-from utils import *
-
 from tqdm.auto import tqdm
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+from utils import *
 from data_loader.nmt_loader import NmtDataLoader, Processor
 
 from datasets import load_dataset, load_from_disk
@@ -104,9 +104,12 @@ def main(args):
         args ('ArgumentParser'):
             'ArgumentParser' object
     """
+    sys.path.append(args.base_path)
+    print(sys.path)
+
     tokenizer = MBart50TokenizerFast.from_pretrained(os.path.join(args.base_path, args.tokenizer_path))
 
-    preprocessor = Processor(tokenizer, args.src_lang, args.tgt_lang, args.max_token_length, args.drop_case, args.bi_direction)
+    preprocessor = Processor(tokenizer, args.max_token_length, args.drop_case, args.bi_direction)
     preparator = NmtDataLoader(tokenizer, preprocessor, args.corpus_path, args.packing_data, args.packing_size, args.hybrid)
     segment_datasets = preparator.get_tokenized_dataset(batch_size=args.batch_size, num_proc=args.num_proc)
     
