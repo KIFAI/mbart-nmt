@@ -32,30 +32,52 @@ $ . mbart_env/bin/activate
 (mbart_env)$ pip install -r requirements.txt
 ```
 
-### 2. Monolingual Corpus
+### 2. Prepare Corpus
 ```
-(mbart_env)$ cd src/raw_data
-(mbart_env)$ cat train.* > ../sentencepiece/monolingual_corpus.txt
+(mbart_env)$ cd ${PROJECT_HOME}/src/train_corpus
+(mbart_env)$ python prepare_corpus.py # Split Train and Valid set
 ```
 
-### 3. Sentencepiece Model & Vocab
+### 3. Prepare Sentencepiece Model & Vocab
 ```
-(mbart_env)$ python prepare_sentencepiece
+(mbart_env)$ cd ${PROJECT_HOME}/src/sentencepiece
+(mbart_env)$ python prepare_sentencepiece.py
+(mbart_env)$ python prepare_joint_spc.py # If you want to combine different SPMs, you can select
 ```
 
 ### 4. Reduce huggingface's mbart50-m2m
 ```
-(mbart_env)$ python reduce_hf_plm.py --plm_name facebook/mbart-large-50-many-to-many-mmt --plm_local_path ./src/plm/tmp_ckpt --reduction_path ./src/plm/reduced_hf_mbart50_m2m
+(mbart_env)$ cd ${PROJECT_HOME}/scripts
+(mbart_env)$ sh reduce_hf_plm.sh
 ```
 
-### 5. Finetune
+### 5. Prepare huggingface dataset to train
 ```
-(mbart_env)$ cd scripts
-(mbart_env)$ ./finetune.sh
-#need to edit finetunining info
+(mbart_env)$ cd ${PROJECT_HOME}/scripts
+(mbart_env)$ sh prepare_hf_dataset.sh # Convert tsv corpus into huggingface dataset format(arrow)
 ```
 
-### 6. evaluate
+### 6. Finetune
+```
+(mbart_env)$ accelerate config
+--------------------------------------------------------------------------------------------------------------------------------------In which compute environment are you running?
+-> This machine
+--------------------------------------------------------------------------------------------------------------------------------------Which type of machine are you using?
+-> multi-GPU
+How many different machines will you use (use more than 1 for multi-node training)? [1]: 1
+Do you wish to optimize your script with torch dynamo?[yes/NO]:NO
+Do you want to use DeepSpeed? [yes/NO]: yes
+Do you want to specify a json file to a DeepSpeed config? [yes/NO]: yes
+Please enter the path to the json DeepSpeed config file: /opt/project/mbart-nmt/ds_config/zero_stage2_config.json
+Do you want to enable `deepspeed.zero.Init` when using ZeRO Stage-3 for constructing massive models? [yes/NO]: NO
+How many GPU(s) should be used for distributed training? [1]:2
+accelerate configuration saved at /root/.cache/huggingface/accelerate/default_config.yaml
+
+(mbart_env)$ cd ${PROJECT_HOME}/scripts
+(mbart_env)$ sh finetune_no_trainer.sh #need to edit finetunining info
+```
+
+### 7. evaluate
 ```
 (mbart_env)$ python evaluate.py
 ```
