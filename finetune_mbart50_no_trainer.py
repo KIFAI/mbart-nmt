@@ -268,14 +268,16 @@ def get_dataloaders(accelerator: Accelerator, model, tokenizer, args):
 
     train_dataloader = DataLoader(segment_datasets['train'].with_format("torch"), batch_size=args.batch_size, collate_fn=data_collator, shuffle=True,
             num_workers=torch.cuda.device_count()*2, worker_init_fn=seed_worker, generator=g, pin_memory=True)
-    eval_dataloader = DataLoader(segment_datasets['valid'].with_format("torch"), batch_size=args.batch_size, collate_fn=data_collator, shuffle=True,
+
+    sorted_indices = np.argsort([i[0] for i in segment_datasets['valid']['input_ids']]) # sort by same lang_id to speed up evaluation step
+    eval_dataloader = DataLoader(segment_datasets['valid'].select(sorted_indices).with_format("torch"), batch_size=args.batch_size, collate_fn=data_collator, shuffle=False,
             num_workers=torch.cuda.device_count()*2, worker_init_fn=seed_worker, generator=g, pin_memory=True)
 
     return train_dataloader, eval_dataloader
 
 def training_functions(args):
     # Initialize accelerator
-    ipg_handler = InitProcessGroupKwargs(timeout=timedelta(seconds=18000))
+    ipg_handler = InitProcessGroupKwargs(timeout=timedelta(seconds=36000))
 
     if args.ds_config_path is not None:
         with open(args.ds_config_path, "r") as f:
@@ -493,13 +495,14 @@ def training_functions(args):
                         samples_seen = 0
                         
                         for valid_step, batch in enumerate(eval_dataloader):
-                            lang_pairs = []
-                            for src_lang_id, tgt_lang_id in zip(batch["input_ids"][:,0], batch["labels"][:,0]):
-                                lang_pairs.append((src_lang_id.item(), tgt_lang_id.item())) # cast 1-d tensor to int (tensor(59763, gpu="cuda:1") > 59763)
+                            lang_pairs, generated_tokens_list, filtered_labels_list = [], [], []
+                            input_lang_ids, label_lang_ids = batch["input_ids"][:,0], batch["labels"][:,0]
 
-                            generated_tokens_list, filtered_labels_list = [], []
+                            for src_lang_id, tgt_lang_id in zip(input_lang_ids, label_lang_ids):
+                                lang_pairs.append((src_lang_id.item(), tgt_lang_id.item()))
+
                             for lang_pair in list(set(lang_pairs)):
-                                filtered_idxs = np.where(batch["input_ids"].cpu().numpy()[:,0]==lang_pair[0])
+                                filtered_idxs = np.where((input_lang_ids.cpu().numpy()==lang_pair[0]) & (label_lang_ids.cpu().numpy()==lang_pair[-1]))
                                 if batch["input_ids"][filtered_idxs].size()[0] != 0:
                                     with torch.no_grad():
                                         preds = accelerator.unwrap_model(model).generate(batch["input_ids"][filtered_idxs], 
@@ -509,7 +512,7 @@ def training_functions(args):
                                         filtered_labels_list.append(batch["labels"][filtered_idxs])
                             
                             generated_tokens, label_tokens = torch.cat(generated_tokens_list, dim=0), torch.cat(filtered_labels_list, dim=0)
-                            
+
                             generated_tokens = accelerator.gather(generated_tokens).cpu().numpy()
                             labels = accelerator.pad_across_processes(label_tokens, dim=1, pad_index=-100)
                             labels = accelerator.gather(labels).cpu().numpy()
